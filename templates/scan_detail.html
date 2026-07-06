@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %}Scan Details{% endblock %}
+{% block content %}
+{% set risk = namespace(score=0) %}
+{% for recommendation in recommendations %}
+  {% set risk.score = risk.score + recommendation.risk_score %}
+{% endfor %}
+{% set risk_score = [risk.score, 100]|min %}
+
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Scan Details</h1>
+    <p class="text-muted mb-0">Assessment record #{{ scan.id }} for {{ scan.target_host }}.</p>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-outline-primary" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='pdf') }}"><i class="bi bi-filetype-pdf me-2" aria-hidden="true"></i>PDF</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='csv') }}"><i class="bi bi-filetype-csv me-2" aria-hidden="true"></i>CSV</a>
+    <a class="btn btn-outline-success" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='json') }}"><i class="bi bi-filetype-json me-2" aria-hidden="true"></i>JSON</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% set metrics = [
+    ('Total Ports', scan_result.total_ports, 'bi-diagram-3'),
+    ('Open Ports', scan_result.open_ports, 'bi-unlock'),
+    ('Closed Ports', scan_result.closed_ports, 'bi-lock'),
+    ('Filtered Ports', scan_result.filtered_ports, 'bi-funnel'),
+    ('Duration', scan_result.duration|default(0, true) ~ 's', 'bi-stopwatch'),
+    ('Risk Score', risk_score ~ '/100', 'bi-exclamation-triangle')
+  ] %}
+  {% for label, value, icon in metrics %}
+    <div class="col-sm-6 col-xl-4">
+      <div class="card metric-card p-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="metric-label small">{{ label }}</div>
+            <div class="metric-value mt-2">{{ value }}</div>
+          </div>
+          <span class="metric-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></span>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-5">
+    <div class="card p-4 h-100">
+      <h2 class="h5 mb-3">Summary</h2>
+      <dl class="row mb-0">
+        <dt class="col-sm-5 text-muted">Host</dt>
+        <dd class="col-sm-7">{{ scan_result.target_host }}</dd>
+        <dt class="col-sm-5 text-muted">Protocol</dt>
+        <dd class="col-sm-7">{{ scan_result.protocol|upper }}</dd>
+        <dt class="col-sm-5 text-muted">Status</dt>
+        <dd class="col-sm-7">{{ scan_result.status|title }}</dd>
+        <dt class="col-sm-5 text-muted">Scan Speed</dt>
+        <dd class="col-sm-7">{{ scan_result.scan_speed }} ports/s</dd>
+        <dt class="col-sm-5 text-muted">First Open Port</dt>
+        <dd class="col-sm-7">{{ scan_result.first_open_port|default('None', true) }}</dd>
+        <dt class="col-sm-5 text-muted">Last Open Port</dt>
+        <dd class="col-sm-7">{{ scan_result.last_open_port|default('None', true) }}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="col-xl-7">
+    <div class="card p-4 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Recommendations</h2>
+        <span class="badge badge-soft-{% if risk_score >= 75 %}danger{% elif risk_score >= 40 %}warning{% else %}success{% endif %}">Risk {{ risk_score }}/100</span>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for recommendation in recommendations %}
+          <div class="list-group-item px-0">
+            <div class="d-flex justify-content-between gap-3">
+              <div>
+                <div class="fw-semibold">Port {{ recommendation.port }}</div>
+                <div class="text-muted small">{{ recommendation.recommendation }}</div>
+              </div>
+              <span class="badge badge-soft-{% if recommendation.severity == 'high' %}danger{% elif recommendation.severity == 'medium' %}warning{% else %}secondary{% endif %} align-self-start">{{ recommendation.severity|title }}</span>
+            </div>
+          </div>
+        {% else %}
+          <div class="text-muted">No rule-based recommendations were generated for this scan.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-4 mb-4" id="comparison">
+  <h2 class="h5 mb-3">Comparison</h2>
+  {% if comparison_results %}
+    <div class="row g-3">
+      <div class="col-md-3"><div class="p-3 border rounded"><div class="small text-muted">Risk Delta</div><div class="h4 mb-0">{{ comparison_results.risk_score_difference }}</div></div></div>
+      <div class="col-md-3"><div class="p-3 border rounded"><div class="small text-muted">Duration Delta</div><div class="h4 mb-0">{{ comparison_results.duration_difference }}s</div></div></div>
+      <div class="col-md-3"><div class="p-3 border rounded"><div class="small text-muted">New Open Ports</div><div class="h4 mb-0">{{ comparison_results.new_open_ports|length }}</div></div></div>
+      <div class="col-md-3"><div class="p-3 border rounded"><div class="small text-muted">Service Changes</div><div class="h4 mb-0">{{ comparison_results.service_changes|length }}</div></div></div>
+    </div>
+  {% else %}
+    <p class="text-muted mb-0">No previous scan is available for comparison.</p>
+  {% endif %}
+</div>
+
+<div class="card p-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h5 mb-0">Port Table</h2>
+    <input class="form-control form-control-sm w-auto" placeholder="Filter table" data-table-search="#portTable" aria-label="Filter port table">
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="portTable">
+      <thead><tr><th data-sort-key="port">Port</th><th>Status</th><th>Service</th><th>Protocol</th><th>Response Time</th></tr></thead>
+      <tbody>
+        {% for result in port_results %}
+          <tr>
+            <td class="fw-semibold">{{ result.port }}</td>
+            <td><span class="badge badge-soft-{% if result.status == 'OPEN' %}danger{% elif result.status == 'CLOSED' %}success{% else %}warning{% endif %}">{{ result.status }}</span></td>
+            <td>{{ result.service_name|default('Unknown', true) }}</td>
+            <td>{{ result.protocol|upper }}</td>
+            <td>{{ result.response_time|default('Not recorded', true) }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No port results were stored for this scan.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

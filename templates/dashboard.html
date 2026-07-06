@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Dashboard</h1>
+    <p class="text-muted mb-0">Security posture, scan throughput, and exposure indicators across assessed hosts.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('ui.scan_page') }}">
+    <i class="bi bi-radar me-2" aria-hidden="true"></i>New Scan
+  </a>
+</div>
+
+<div class="row g-3 mb-4">
+  {% set metrics = [
+    ('Total Scans', summary.total_scans|default(0), 'bi-collection'),
+    ('Total Hosts', summary.total_hosts_scanned|default(0), 'bi-hdd-network'),
+    ('Total Ports', summary.total_ports_scanned|default(0), 'bi-diagram-3'),
+    ('Average Duration', summary.average_scan_duration|default(0) ~ 's', 'bi-stopwatch'),
+    ('Average Speed', summary.average_scan_speed|default(0) ~ ' ports/s', 'bi-speedometer'),
+    ('High Risk Hosts', summary.high_risk_hosts|default(0), 'bi-exclamation-octagon')
+  ] %}
+  {% for label, value, icon in metrics %}
+    <div class="col-sm-6 col-xl-4">
+      <div class="card metric-card p-3">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="metric-label small">{{ label }}</div>
+            <div class="metric-value mt-2">{{ value }}</div>
+          </div>
+          <span class="metric-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></span>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Open vs Closed Ports</h2>
+        <span class="badge badge-soft-secondary">Port Status</span>
+      </div>
+      <div class="chart-box"><canvas id="statusChart" aria-label="Open versus closed ports chart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Scan Trend</h2>
+        <span class="badge badge-soft-secondary">Daily</span>
+      </div>
+      <div class="chart-box"><canvas id="trendChart" aria-label="Daily scan trend chart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Top Services</h2>
+        <span class="badge badge-soft-secondary">Detected</span>
+      </div>
+      <div class="chart-box"><canvas id="serviceChart" aria-label="Top services chart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Port Distribution</h2>
+        <span class="badge badge-soft-secondary">Open Ports</span>
+      </div>
+      <div class="chart-box"><canvas id="portChart" aria-label="Port distribution chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">Recent Activity</h2>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ui.history') }}">View History</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr><th>Host</th><th>Status</th><th>Duration</th><th>Created</th></tr>
+          </thead>
+          <tbody>
+            {% for scan in recent_activity %}
+              <tr>
+                <td class="fw-semibold">{{ scan.host }}</td>
+                <td><span class="badge badge-soft-{% if scan.status == 'completed' %}success{% elif scan.status == 'running' %}warning{% else %}secondary{% endif %}">{{ scan.status|title }}</span></td>
+                <td>{{ scan.duration|default(0, true) }}s</td>
+                <td>{{ scan.created_at|default('Not recorded', true) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-4">No scans have been recorded yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Top Ports</h2>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead><tr><th>Port</th><th>Occurrences</th></tr></thead>
+          <tbody>
+            {% for item in summary.top_open_ports %}
+              <tr><td class="fw-semibold">{{ item.port }}</td><td>{{ item.count }}</td></tr>
+            {% else %}
+              <tr><td colspan="2" class="text-muted py-3">No open ports detected.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const dailyTrend = {{ summary.daily|default([])|tojson }};
+  const topPorts = {{ summary.top_open_ports|default([])|tojson }};
+  const topServices = {{ summary.top_services|default([])|tojson }};
+  const statusCounts = {
+    open: {{ summary.open_ports|default(0)|tojson }},
+    closed: {{ summary.closed_ports|default(0)|tojson }},
+    filtered: {{ summary.filtered_ports|default(0)|tojson }}
+  };
+  const chartColors = ['#376c91', '#5e86a3', '#8aa9bd', '#1f7a4d', '#a86400', '#b42318'];
+
+  new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Open', 'Closed', 'Filtered'],
+      datasets: [{ data: [statusCounts.open, statusCounts.closed, statusCounts.filtered], backgroundColor: ['#b42318', '#376c91', '#a86400'] }]
+    },
+    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+  });
+  new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: dailyTrend.map(item => item.label),
+      datasets: [{ label: 'Scans', data: dailyTrend.map(item => item.value), borderColor: '#376c91', backgroundColor: 'rgba(55, 108, 145, .12)', tension: .25, fill: true }]
+    },
+    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+  new Chart(document.getElementById('serviceChart'), {
+    type: 'bar',
+    data: {
+      labels: topServices.map(item => item.service || 'Unknown'),
+      datasets: [{ label: 'Services', data: topServices.map(item => item.count), backgroundColor: '#376c91' }]
+    },
+    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { display: false } } }
+  });
+  new Chart(document.getElementById('portChart'), {
+    type: 'pie',
+    data: {
+      labels: topPorts.map(item => String(item.port)),
+      datasets: [{ data: topPorts.map(item => item.count), backgroundColor: chartColors }]
+    },
+    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+  });
+</script>
+{% endblock %}

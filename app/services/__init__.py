@@ -7,6 +7,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from app.analytics.dashboard import DashboardService as AnalyticsDashboardService
 from app.models import PortResult, ScanSession
 from app.repositories import (
     PortResultRepository,
@@ -278,6 +279,10 @@ class DashboardService:
 
     def __init__(self, repository: ScanRepository | None = None) -> None:
         self._repository = repository or ScanRepository()
+        self._analytics_service = AnalyticsDashboardService(
+            session_repo=ScanSessionRepository(),
+            result_repo=PortResultRepository(),
+        )
 
     def get_home_dashboard_data(self) -> HomePageData:
         """Return simple view-model data for the landing page."""
@@ -288,6 +293,46 @@ class DashboardService:
             scan_count=scan_count,
             status="ready",
         )
+
+    def get_dashboard_summary(self) -> dict[str, Any]:
+        """Return a dashboard summary payload for the UI."""
+        return self._analytics_service.get_dashboard_summary()
+
+    def get_port_statistics(self) -> dict[str, Any]:
+        """Return port-oriented statistics for the UI."""
+        return self._analytics_service.get_port_statistics()
+
+    def get_service_statistics(self) -> dict[str, Any]:
+        """Return service-oriented statistics for the UI."""
+        return self._analytics_service.get_service_statistics()
+
+    def get_scan_trends(self) -> dict[str, Any]:
+        """Return trend data for charts and analytics pages."""
+        return self._analytics_service.get_scan_trends()
+
+    def get_recent_scans(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return recent scan history for the UI."""
+        return self._analytics_service.get_recent_scans(limit=limit)
+
+    def get_top_hosts(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the most frequently scanned hosts."""
+        return self._analytics_service.get_top_hosts(limit=limit)
+
+    def get_top_open_ports(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the most commonly observed open ports."""
+        return self._analytics_service.get_top_open_ports(limit=limit)
+
+    def get_average_scan_duration(self) -> float:
+        """Return the average scan duration."""
+        return self._analytics_service.get_average_scan_duration()
+
+    def get_average_scan_speed(self) -> float:
+        """Return the average scan speed."""
+        return self._analytics_service.get_average_scan_speed()
+
+    def get_chart_data(self) -> dict[str, Any]:
+        """Return Chart.js-ready chart payloads."""
+        return self._analytics_service.get_chart_data()
 
 
 class ScanSessionService:

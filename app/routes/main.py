@@ -6,16 +6,12 @@ application.
 
 from __future__ import annotations
 
-from flask import Blueprint, render_template
-
-from app.controllers import MainController
+from flask import Blueprint, redirect, url_for
 
 main_bp = Blueprint("main", __name__)
 
 
-@main_bp.route("/")
+@main_bp.route("/landing")
 def home() -> str:
-    """Render the landing page for the application."""
-    controller = MainController()
-    context = controller.build_home_context()
-    return render_template("index.html", **context)
+    """Redirect legacy landing requests to the dashboard UI."""
+    return redirect(url_for("ui.dashboard"))

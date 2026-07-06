@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Scan History{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Scan History</h1>
+    <p class="text-muted mb-0">Search, filter, compare, and manage completed assessment records.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('ui.scan_page') }}">
+    <i class="bi bi-plus-lg me-2" aria-hidden="true"></i>New Scan
+  </a>
+</div>
+
+<div class="card p-3">
+  <form class="row g-3 align-items-end mb-3" method="get">
+    <div class="col-md-5">
+      <label class="form-label" for="q">Search</label>
+      <input class="form-control" id="q" name="q" value="{{ query|default('', true) }}" placeholder="Host or IP address" data-table-search="#historyTable">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label" for="status">Status</label>
+      <select class="form-select" id="status" name="status">
+        <option value="" {% if not status %}selected{% endif %}>All statuses</option>
+        <option value="completed" {% if status == 'completed' %}selected{% endif %}>Completed</option>
+        <option value="running" {% if status == 'running' %}selected{% endif %}>Running</option>
+        <option value="failed" {% if status == 'failed' %}selected{% endif %}>Failed</option>
+      </select>
+    </div>
+    <div class="col-md-4 d-flex gap-2">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-funnel me-2" aria-hidden="true"></i>Apply</button>
+      <a class="btn btn-outline-secondary" href="{{ url_for('ui.history') }}">Reset</a>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="historyTable">
+      <thead>
+        <tr>
+          <th scope="col" data-sort-key="host">Host</th>
+          <th scope="col" data-sort-key="status">Status</th>
+          <th scope="col" data-sort-key="ports">Ports</th>
+          <th scope="col" data-sort-key="duration">Duration</th>
+          <th scope="col" data-sort-key="created">Created</th>
+          <th scope="col" class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in scans %}
+          <tr>
+            <td class="fw-semibold">{{ scan.target_host }}</td>
+            <td><span class="badge badge-soft-{% if scan.status == 'completed' %}success{% elif scan.status == 'running' %}warning{% elif scan.status == 'failed' %}danger{% else %}secondary{% endif %}">{{ scan.status|title }}</span></td>
+            <td>{{ scan.total_ports|default(0, true) }}</td>
+            <td>{{ scan.duration|default(0, true) }}s</td>
+            <td>{{ scan.created_at.strftime('%Y-%m-%d %H:%M') if scan.created_at else 'Not recorded' }}</td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm" role="group" aria-label="Actions for scan {{ scan.id }}">
+                <a class="btn btn-outline-primary" href="{{ url_for('ui.scan_details', scan_id=scan.id) }}" title="View details"><i class="bi bi-eye" aria-hidden="true"></i></a>
+                <a class="btn btn-outline-secondary" href="{{ url_for('ui.scan_details', scan_id=scan.id) }}#comparison" title="Compare scan"><i class="bi bi-columns-gap" aria-hidden="true"></i></a>
+                <form method="post" action="{{ url_for('ui.delete_scan', scan_id=scan.id) }}" class="d-inline">
+                  <button class="btn btn-outline-danger" type="submit" title="Delete scan" onclick="return confirm('Delete this scan record?')"><i class="bi bi-trash" aria-hidden="true"></i></button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No scans match the current filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 pt-3">
+    <div class="small text-muted">Showing {{ scans|length }} scan records</div>
+    <nav aria-label="Scan history pagination">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item disabled"><span class="page-link">Previous</span></li>
+        <li class="page-item active" aria-current="page"><span class="page-link">1</span></li>
+        <li class="page-item disabled"><span class="page-link">Next</span></li>
+      </ul>
+    </nav>
+  </div>
+</div>
+{% endblock %}

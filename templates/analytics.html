@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Analytics{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Analytics</h1>
+    <p class="text-muted mb-0">Trend, service, host, and port intelligence derived from stored scan sessions.</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Total Scans</div><div class="metric-value">{{ summary.total_scans|default(0) }}</div></div></div>
+  <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Average Duration</div><div class="metric-value">{{ summary.average_scan_duration|default(0) }}s</div></div></div>
+  <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Average Speed</div><div class="metric-value">{{ summary.average_scan_speed|default(0) }}</div></div></div>
+  <div class="col-md-3"><div class="card p-3"><div class="small text-muted">Open Ports</div><div class="metric-value">{{ summary.open_ports|default(0) }}</div></div></div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-xl-8">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Scan Trend</h2>
+      <div class="chart-box"><canvas id="analyticsTrend" aria-label="Scan trend analytics chart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Port Distribution</h2>
+      <div class="chart-box"><canvas id="analyticsPorts" aria-label="Port distribution analytics chart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-4">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Top Hosts</h2>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Host</th><th>Scans</th></tr></thead>
+          <tbody>
+            {% for host in summary.top_hosts %}
+              <tr><td>{{ host.host }}</td><td>{{ host.count }}</td></tr>
+            {% else %}
+              <tr><td colspan="2" class="text-muted">No host data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Top Services</h2>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Service</th><th>Count</th></tr></thead>
+          <tbody>
+            {% for service in summary.top_services %}
+              <tr><td>{{ service.service }}</td><td>{{ service.count }}</td></tr>
+            {% else %}
+              <tr><td colspan="2" class="text-muted">No service data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card p-3 h-100">
+      <h2 class="h5 mb-3">Top Ports</h2>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead><tr><th>Port</th><th>Count</th></tr></thead>
+          <tbody>
+            {% for port in summary.top_open_ports %}
+              <tr><td>{{ port.port }}</td><td>{{ port.count }}</td></tr>
+            {% else %}
+              <tr><td colspan="2" class="text-muted">No port data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const trend = {{ charts.scan_trend|tojson }};
+  const ports = {{ charts.port_distribution|tojson }};
+  const services = {{ charts.service_distribution|tojson }};
+  const portLabels = ports.data.labels.length ? ports.data.labels : ['No data'];
+  const portValues = ports.data.datasets[0].data.length ? ports.data.datasets[0].data : [0];
+
+  new Chart(document.getElementById('analyticsTrend'), {
+    type: 'line',
+    data: {
+      labels: trend.data.labels,
+      datasets: [{ label: 'Scans', data: trend.data.datasets[0].data, borderColor: '#376c91', backgroundColor: 'rgba(55, 108, 145, .12)', fill: true, tension: .25 }]
+    },
+    options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+  new Chart(document.getElementById('analyticsPorts'), {
+    type: 'doughnut',
+    data: { labels: portLabels, datasets: [{ data: portValues, backgroundColor: ['#376c91', '#5e86a3', '#8aa9bd', '#b42318', '#a86400'] }] },
+    options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+  });
+</script>
+{% endblock %}

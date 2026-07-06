@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Reports</h1>
+    <p class="text-muted mb-0">Download operational scan reports in PDF, CSV, or JSON format.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card p-3">
+      <h2 class="h5 mb-3">Available Scan Reports</h2>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Host</th><th>Status</th><th>Created</th><th class="text-end">Downloads</th></tr></thead>
+          <tbody>
+            {% for scan in scans %}
+              <tr>
+                <td class="fw-semibold">{{ scan.target_host }}</td>
+                <td><span class="badge badge-soft-{% if scan.status == 'completed' %}success{% elif scan.status == 'running' %}warning{% else %}secondary{% endif %}">{{ scan.status|title }}</span></td>
+                <td>{{ scan.created_at.strftime('%Y-%m-%d %H:%M') if scan.created_at else 'Not recorded' }}</td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm">
+                    <a class="btn btn-outline-primary" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='pdf') }}">PDF</a>
+                    <a class="btn btn-outline-secondary" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='csv') }}">CSV</a>
+                    <a class="btn btn-outline-success" href="{{ url_for('ui.download_report', scan_id=scan.id, report_format='json') }}">JSON</a>
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="4" class="text-center text-muted py-4">No scans are available for report generation.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card p-4 h-100">
+      <h2 class="h5">Latest Report Snapshot</h2>
+      {% if latest_scan and latest_report %}
+        <dl class="row small mb-0">
+          <dt class="col-5 text-muted">Host</dt><dd class="col-7">{{ latest_report.target_host }}</dd>
+          <dt class="col-5 text-muted">Protocol</dt><dd class="col-7">{{ latest_report.protocol|upper }}</dd>
+          <dt class="col-5 text-muted">Open Ports</dt><dd class="col-7">{{ latest_report.open_ports }}</dd>
+          <dt class="col-5 text-muted">Closed Ports</dt><dd class="col-7">{{ latest_report.closed_ports }}</dd>
+          <dt class="col-5 text-muted">Recommendations</dt><dd class="col-7">{{ latest_report.recommendations|length }}</dd>
+        </dl>
+      {% else %}
+        <p class="text-muted mb-0">Run a scan to populate report snapshots and downloads.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

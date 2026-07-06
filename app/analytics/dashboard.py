@@ -30,6 +30,10 @@ class DashboardService:
         summary["top_hosts"] = statistics.top_hosts(limit=10)
         summary["top_open_ports"] = statistics.top_open_ports(limit=10)
         summary["recent_scans"] = statistics.recent_scans(limit=10)
+        trends = self.get_scan_trends()
+        summary["daily"] = trends["daily"]
+        summary["weekly"] = trends["weekly"]
+        summary["monthly"] = trends["monthly"]
         return summary
 
     def get_port_statistics(self) -> dict[str, Any]:

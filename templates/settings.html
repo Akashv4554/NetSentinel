@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">Settings</h1>
+    <p class="text-muted mb-0">Configure default UI preferences for scanner submissions.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card p-4">
+      <form method="post" data-show-loading="true">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="threads">Default Thread Count</label>
+            <input class="form-control" id="threads" type="number" min="1" max="500" name="threads" value="{{ settings.threads }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="timeout">Default Timeout</label>
+            <div class="input-group">
+              <input class="form-control" id="timeout" type="number" min="1" max="120" name="timeout" value="{{ settings.timeout }}" required>
+              <span class="input-group-text">s</span>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="theme">Theme</label>
+            <select class="form-select" id="theme" name="theme">
+              <option value="defense" {% if settings.theme == 'defense' %}selected{% endif %}>Navy / Steel</option>
+              <option value="light" {% if settings.theme == 'light' %}selected{% endif %}>Light</option>
+              <option value="contrast" {% if settings.theme == 'contrast' %}selected{% endif %}>High Contrast</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="scanner_mode">Scanner Preferences</label>
+            <select class="form-select" id="scanner_mode" name="scanner_mode">
+              <option value="balanced" {% if settings.scanner_mode == 'balanced' %}selected{% endif %}>Balanced</option>
+              <option value="conservative" {% if settings.scanner_mode == 'conservative' %}selected{% endif %}>Conservative</option>
+              <option value="throughput" {% if settings.scanner_mode == 'throughput' %}selected{% endif %}>High Throughput</option>
+            </select>
+          </div>
+        </div>
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-primary" type="submit"><i class="bi bi-save me-2" aria-hidden="true"></i>Save Settings</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('ui.dashboard') }}">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card p-4 h-100">
+      <h2 class="h5">Operational Defaults</h2>
+      <p class="text-muted mb-0">These settings are applied by the web interface when preparing scan requests. Core scanner and service behavior remain unchanged.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

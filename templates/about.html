@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}About{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">About NetSentinel</h1>
+    <p class="text-muted mb-0">Enterprise network security assessment for engineering teams.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-7">
+    <div class="card p-4 h-100">
+      <h2 class="h5">Platform Overview</h2>
+      <p>NetSentinel provides controlled TCP scanning, scan history, analytics, recommendations, comparisons, and downloadable reports through a Flask-based enterprise application.</p>
+      <div class="row g-3 mt-2">
+        <div class="col-md-6"><div class="p-3 border rounded h-100"><i class="bi bi-cpu me-2 text-primary" aria-hidden="true"></i>Multi-threaded TCP Scanner</div></div>
+        <div class="col-md-6"><div class="p-3 border rounded h-100"><i class="bi bi-database-check me-2 text-primary" aria-hidden="true"></i>Repository and Service Layers</div></div>
+        <div class="col-md-6"><div class="p-3 border rounded h-100"><i class="bi bi-graph-up me-2 text-primary" aria-hidden="true"></i>Analytics Engine</div></div>
+        <div class="col-md-6"><div class="p-3 border rounded h-100"><i class="bi bi-file-earmark-text me-2 text-primary" aria-hidden="true"></i>Reporting Engine</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card p-4 h-100">
+      <h2 class="h5">Interface Scope</h2>
+      <p class="text-muted">This web interface is designed for internal engineering use, with restrained navigation, dense operational tables, responsive cards, and accessible Bootstrap controls.</p>
+      <hr>
+      <div class="small text-muted">Application</div>
+      <div class="fw-semibold">NetSentinel Enterprise UI</div>
+      <div class="small text-muted mt-3">Stack</div>
+      <div class="fw-semibold">Flask, Jinja2, Bootstrap 5, Chart.js</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

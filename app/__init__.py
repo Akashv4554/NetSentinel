@@ -11,13 +11,14 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask
+from flask import Flask, render_template
 from dotenv import load_dotenv
 
 from app.config import Config, TestingConfig
 from app.extensions import db
 from app.routes.api import api_bp
 from app.routes.main import main_bp
+from app.routes.ui import ui_bp
 
 
 load_dotenv()
@@ -25,7 +26,12 @@ load_dotenv()
 
 def create_app(config_name: Optional[str] = None) -> Flask:
     """Create and configure a Flask application instance."""
-    app = Flask(__name__, instance_relative_config=True)
+    app = Flask(
+        __name__,
+        instance_relative_config=True,
+        template_folder="../templates",
+        static_folder="../static",
+    )
 
     config_obj = resolve_config(config_name)
     app.config.from_object(config_obj)
@@ -41,6 +47,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     register_blueprints(app)
     configure_logging(app)
     register_shell_context(app)
+    register_error_handlers(app)
 
     return app
 
@@ -64,6 +71,7 @@ def register_blueprints(app: Flask) -> None:
     """Register all Flask blueprints with the application."""
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(ui_bp)
 
 
 def configure_logging(app: Flask) -> None:
@@ -93,3 +101,15 @@ def register_shell_context(app: Flask) -> None:
     @app.shell_context_processor
     def make_shell_context() -> dict[str, object]:
         return {"db": db}
+
+
+def register_error_handlers(app: Flask) -> None:
+    """Register friendly error pages for the UI."""
+
+    @app.errorhandler(404)
+    def handle_not_found(_error: Exception) -> tuple[str, int]:
+        return render_template("errors/404.html"), 404
+
+    @app.errorhandler(500)
+    def handle_server_error(_error: Exception) -> tuple[str, int]:
+        return render_template("errors/500.html"), 500

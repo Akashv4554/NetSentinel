@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}New Scan{% endblock %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1 class="h3">New Scan</h1>
+    <p class="text-muted mb-0">Start a controlled TCP assessment using the existing NetSentinel scanner workflow.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card p-4">
+      <form method="post" id="scanForm" data-show-loading="true" novalidate>
+        <div class="mb-4">
+          <label class="form-label" for="host">Host/IP</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-hdd-network" aria-hidden="true"></i></span>
+            <input class="form-control" id="host" name="host" value="{{ host|default('', true) }}" placeholder="10.0.0.15 or host.example.internal" required autocomplete="off">
+          </div>
+          <div class="form-text">Enter a single hostname or IP address approved for assessment.</div>
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-6 col-xl-3">
+            <label class="form-label" for="start_port">Start Port</label>
+            <input class="form-control" id="start_port" type="number" min="1" max="65535" name="start_port" value="{{ start_port|default(1, true) }}" required>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <label class="form-label" for="end_port">End Port</label>
+            <input class="form-control" id="end_port" type="number" min="1" max="65535" name="end_port" value="{{ end_port|default(1024, true) }}" required>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <label class="form-label" for="threads">Thread Count</label>
+            <input class="form-control" id="threads" type="number" min="1" max="500" name="threads" value="{{ threads|default(10, true) }}" required>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <label class="form-label" for="timeout">Timeout</label>
+            <div class="input-group">
+              <input class="form-control" id="timeout" type="number" min="1" max="120" name="timeout" value="{{ timeout|default(10, true) }}" required>
+              <span class="input-group-text">s</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-play-fill me-2" aria-hidden="true"></i>Start Scan
+          </button>
+          <button class="btn btn-outline-secondary" type="reset">
+            <i class="bi bi-arrow-counterclockwise me-2" aria-hidden="true"></i>Reset
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card p-4 h-100">
+      <h2 class="h5">Scan Controls</h2>
+      <dl class="row small mb-0">
+        <dt class="col-5 text-muted">Protocol</dt>
+        <dd class="col-7">TCP</dd>
+        <dt class="col-5 text-muted">Execution</dt>
+        <dd class="col-7">Service layer</dd>
+        <dt class="col-5 text-muted">Outputs</dt>
+        <dd class="col-7">History, analytics, reports</dd>
+        <dt class="col-5 text-muted">Validation</dt>
+        <dd class="col-7">Host and port range</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}
