@@ -21,12 +21,14 @@ from app.scanner.validator import (
     HostnameValidationError,
     IPv4ValidationError,
     IPv6ValidationError,
+    PortRangeValidationError,
     PortValidationError,
     ValidationError,
     validate_hostname,
     validate_ipv4,
     validate_ipv6,
     validate_port_number,
+    validate_port_range,
 )
 
 
@@ -170,12 +172,57 @@ class TCPScanner:
                 except OSError:
                     self.logger.debug("Socket close failed for %s:%s", validated_host, validated_port)
 
-    def scan_range(self, host: str, start_port: int, end_port: int) -> None:
-        """Scan a TCP port range.
+    def scan_ports(self, host: str, ports: list[int]) -> list[ScanResult]:
+        """Scan multiple TCP ports for a single host in order.
 
-        This method is intentionally left unimplemented for future work.
+        The method validates the supplied list of ports, reuses :meth:`scan_port`
+        for each port, preserves the requested order, and continues scanning even
+        if an individual port raises an error.
         """
-        raise NotImplementedError("TCP port range scanning is not implemented yet")
+        if not isinstance(ports, list):
+            raise TypeError("ports must be provided as a list of integers")
+
+        if not ports:
+            self.logger.info("No ports supplied for TCP scan on %s", host)
+            return []
+
+        results: list[ScanResult] = []
+        for port in ports:
+            self.logger.info("Scanning port %s for host %s", port, host)
+            try:
+                results.append(self.scan_port(host, port))
+            except Exception as exc:  # pragma: no cover - defensive guard
+                self.logger.exception("Unexpected failure while scanning %s:%s", host, port)
+                results.append(
+                    ScanResult(
+                        host=str(host),
+                        port=int(port) if isinstance(port, int) else 0,
+                        protocol="tcp",
+                        status="ERROR",
+                        response_time=None,
+                        service_name="Unknown",
+                        error_message=str(exc),
+                        timestamp=self._timestamp(),
+                    )
+                )
+
+        return results
+
+    def scan_range(self, host: str, start_port: int, end_port: int) -> list[ScanResult]:
+        """Scan every TCP port in a range for a single host.
+
+        The method validates the full range, builds a sequential list of ports,
+        and delegates each scan to :meth:`scan_port` through :meth:`scan_ports`.
+        """
+        try:
+            start, end = validate_port_range(start_port, end_port)
+        except (PortValidationError, PortRangeValidationError, TypeError) as exc:
+            self.logger.warning("Invalid port range %s-%s: %s", start_port, end_port, exc)
+            raise
+
+        ports = list(range(start, end + 1))
+        self.logger.info("Scanning TCP range %s-%s for host %s", start, end, host)
+        return self.scan_ports(host, ports)
 
     def _validate_host(self, host: str) -> str:
         """Validate the scan target using the shared scanner validators."""
