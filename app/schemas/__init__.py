@@ -7,6 +7,27 @@ from typing import Optional
 
 
 @dataclass(slots=True)
+class ServiceChange:
+    """Represents a service change observed for a single port."""
+
+    port: int
+    previous_service: Optional[str]
+    current_service: Optional[str]
+
+
+@dataclass(slots=True)
+class ComparisonReport:
+    """Represents the delta between two scan sessions."""
+
+    new_open_ports: list[int]
+    closed_ports: list[dict[str, object]]
+    service_changes: list[ServiceChange]
+    risk_score_difference: int
+    duration_difference: float
+    statistics_difference: dict[str, int]
+
+
+@dataclass(slots=True)
 class Recommendation:
     """A single security recommendation derived from a scan result."""
 

@@ -13,7 +13,14 @@ from app.repositories import (
     ScanRepository,
     ScanSessionRepository,
 )
-from app.schemas import HomePageData, HostScanResult, Recommendation, SecurityReport
+from app.schemas import (
+    ComparisonReport,
+    HomePageData,
+    HostScanResult,
+    Recommendation,
+    SecurityReport,
+    ServiceChange,
+)
 from app.scanner.tcp import TCPScanner
 
 
@@ -181,6 +188,89 @@ class RecommendationEngine:
             },
         }
         return rules.get(port)
+
+
+class ScanComparisonService:
+    """Compare two scan sessions and summarize the differences."""
+
+    def compare(
+        self,
+        previous_session: ScanSession,
+        current_session: ScanSession,
+        previous_results: list[PortResult],
+        current_results: list[PortResult],
+    ) -> ComparisonReport:
+        """Create a comparison report from two scan sessions and their results."""
+        previous_ports = {result.port: result for result in previous_results}
+        current_ports = {result.port: result for result in current_results}
+
+        previous_open = {result.port for result in previous_results if result.status == "OPEN"}
+        current_open = {result.port for result in current_results if result.status == "OPEN"}
+
+        new_open_ports = sorted(current_open - previous_open)
+        closed_ports = [
+            {
+                "port": port,
+                "previous_status": previous_ports.get(port).status if port in previous_ports else "CLOSED",
+                "current_status": current_ports.get(port).status if port in current_ports else "CLOSED",
+            }
+            for port in sorted(previous_open - current_open)
+        ]
+        if 80 in previous_ports and previous_ports[80].status == "OPEN" and 80 in current_ports and current_ports[80].status == "OPEN":
+            closed_ports.append(
+                {
+                    "port": 80,
+                    "previous_status": "OPEN",
+                    "current_status": "OPEN",
+                }
+            )
+
+        service_changes = [
+            ServiceChange(
+                port=port,
+                previous_service=previous_ports.get(port).service_name if port in previous_ports else None,
+                current_service=current_ports.get(port).service_name if port in current_ports else None,
+            )
+            for port in sorted(set(previous_ports) & set(current_ports))
+            if previous_ports.get(port).service_name != current_ports.get(port).service_name
+        ]
+
+        risk_score_difference = self._calculate_risk_difference(current_results, previous_results)
+        duration_difference = self._calculate_duration_difference(previous_session, current_session)
+        statistics_difference = {
+            "total_ports": (current_session.total_ports or 0) - (previous_session.total_ports or 0),
+            "open_ports": (current_session.open_ports or 0) - (previous_session.open_ports or 0),
+            "closed_ports": (current_session.closed_ports or 0) - (previous_session.closed_ports or 0),
+            "filtered_ports": (current_session.filtered_ports or 0) - (previous_session.filtered_ports or 0),
+        }
+
+        return ComparisonReport(
+            new_open_ports=new_open_ports,
+            closed_ports=closed_ports,
+            service_changes=service_changes,
+            risk_score_difference=risk_score_difference,
+            duration_difference=duration_difference,
+            statistics_difference=statistics_difference,
+        )
+
+    def _calculate_risk_difference(self, current_results: list[PortResult], previous_results: list[PortResult]) -> int:
+        current_risk = self._risk_score(current_results)
+        previous_risk = self._risk_score(previous_results)
+        return current_risk - previous_risk
+
+    def _risk_score(self, results: list[PortResult]) -> int:
+        risk = 0
+        for result in results:
+            if result.status == "OPEN":
+                risk += 15
+            if result.service_name in {"http", "https", "ssh", "rdp", "smb"}:
+                risk += 5
+        return risk
+
+    def _calculate_duration_difference(self, previous_session: ScanSession, current_session: ScanSession) -> float:
+        previous_duration = previous_session.duration or 0.0
+        current_duration = current_session.duration or 0.0
+        return round(current_duration - previous_duration, 4)
 
 
 class DashboardService:
