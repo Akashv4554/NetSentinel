@@ -12,6 +12,7 @@ import errno
 import logging
 import socket
 import time
+from concurrent.futures import Future, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -223,6 +224,73 @@ class TCPScanner:
         ports = list(range(start, end + 1))
         self.logger.info("Scanning TCP range %s-%s for host %s", start, end, host)
         return self.scan_ports(host, ports)
+
+    def scan_ports_threaded(
+        self,
+        host: str,
+        ports: list[int],
+        max_workers: int = 10,
+    ) -> list[ScanResult]:
+        """Scan multiple TCP ports concurrently while preserving request order.
+
+        The method validates the worker count, submits each port to a
+        :class:`ThreadPoolExecutor`, reuses :meth:`scan_port` for the actual
+        work, and preserves the original order of results by collecting them by
+        index.
+        """
+        if not isinstance(ports, list):
+            raise TypeError("ports must be provided as a list of integers")
+
+        if not ports:
+            self.logger.info("No ports supplied for threaded TCP scan on %s", host)
+            return []
+
+        if not isinstance(max_workers, int) or max_workers < 1:
+            raise ValueError("max_workers must be a positive integer")
+
+        self.logger.info(
+            "Starting threaded TCP scan for %s with %s workers over %s ports",
+            host,
+            max_workers,
+            len(ports),
+        )
+
+        start_time = time.perf_counter()
+        results: list[ScanResult] = [ScanResult(host=host, port=0, protocol="tcp", status="ERROR") for _ in ports]
+        futures: list[Future[ScanResult]] = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for index, port in enumerate(ports):
+                self.logger.debug("Submitting port %s for host %s", port, host)
+                future = executor.submit(self.scan_port, host, port)
+                futures.append(future)
+
+            wait(futures)
+
+            for index, future in enumerate(futures):
+                try:
+                    results[index] = future.result()
+                    self.logger.debug("Completed scan for port %s", ports[index])
+                except Exception as exc:  # pragma: no cover - defensive guard
+                    self.logger.exception("Future failed for %s:%s", host, ports[index])
+                    results[index] = ScanResult(
+                        host=str(host),
+                        port=int(ports[index]) if isinstance(ports[index], int) else 0,
+                        protocol="tcp",
+                        status="ERROR",
+                        response_time=None,
+                        service_name="Unknown",
+                        error_message=str(exc),
+                        timestamp=self._timestamp(),
+                    )
+
+        duration = round(time.perf_counter() - start_time, 6)
+        self.logger.info(
+            "Completed threaded TCP scan for %s in %.6fs",
+            host,
+            duration,
+        )
+        return results
 
     def _validate_host(self, host: str) -> str:
         """Validate the scan target using the shared scanner validators."""

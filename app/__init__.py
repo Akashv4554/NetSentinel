@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from app.config import Config, TestingConfig
 from app.extensions import db
+from app.routes.api import api_bp
 from app.routes.main import main_bp
 
 
@@ -62,6 +63,7 @@ def initialize_extensions(app: Flask) -> None:
 def register_blueprints(app: Flask) -> None:
     """Register all Flask blueprints with the application."""
     app.register_blueprint(main_bp)
+    app.register_blueprint(api_bp)
 
 
 def configure_logging(app: Flask) -> None:
