@@ -44,18 +44,18 @@ def test_scanner_engine_initializes_with_configuration() -> None:
     assert engine.logger.name == "netsentinel.scanner"
 
 
-def test_tcp_scanner_methods_are_stubs() -> None:
-    """TCP scanner methods should be intentionally unimplemented."""
-    scanner = TCPScanner()
+def test_tcp_scanner_scan_port_returns_result() -> None:
+    """The TCP scanner should return a result object for a single port scan."""
+    scanner = TCPScanner(timeout=1.0)
+    result = scanner.scan_port("127.0.0.1", 1)
 
-    with pytest.raises(NotImplementedError):
-        scanner.connect("127.0.0.1", 80)
-
-    with pytest.raises(NotImplementedError):
-        scanner.scan_port("127.0.0.1", 80)
-
-    with pytest.raises(NotImplementedError):
-        scanner.scan_range("127.0.0.1", 20, 25)
+    assert result.host == "127.0.0.1"
+    assert result.port == 1
+    assert result.protocol == "tcp"
+    assert result.status in {"OPEN", "CLOSED", "FILTERED", "ERROR"}
+    assert result.response_time is None or result.response_time >= 0
+    assert result.service_name in {"Unknown", "tcpmux"}
+    assert result.timestamp is not None
 
 
 def test_models_are_typed_dataclasses() -> None:

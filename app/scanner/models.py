@@ -43,10 +43,17 @@ class ScanRequest:
 
 @dataclass(slots=True)
 class ScanResult:
-    """Represents the outcome of a scan request."""
+    """Represents the outcome of a single scan operation."""
 
-    request: ScanRequest
+    host: str = ""
+    port: int = 0
+    protocol: str = "tcp"
     status: str = "pending"
+    response_time: Optional[float] = None
+    service_name: str = "Unknown"
+    error_message: Optional[str] = None
+    timestamp: Optional[str] = None
+    request: Optional[ScanRequest] = None
     error: Optional[str] = None
     opened_ports: list[Port] = field(default_factory=list)
 
