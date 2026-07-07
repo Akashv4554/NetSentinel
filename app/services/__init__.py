@@ -24,6 +24,17 @@ from app.schemas import (
     ServiceChange,
 )
 from app.scanner.tcp import TCPScanner
+from app.services.ai_security_advisor import AISecurityAdvisor
+
+__all__ = [
+    "AISecurityAdvisor",
+    "AnalyticsService",
+    "DashboardService",
+    "RecommendationEngine",
+    "ScanComparisonService",
+    "ScanService",
+    "ScanSessionService",
+]
 
 
 class AnalyticsService:
@@ -552,10 +563,12 @@ class ScanService:
         session_service: Optional[ScanSessionService] = None,
         scanner: Optional[TCPScanner] = None,
         logger: Optional[logging.Logger] = None,
+        advisor: Optional[AISecurityAdvisor] = None,
     ) -> None:
         self._session_service = session_service or ScanSessionService()
         self._scanner = scanner or TCPScanner()
         self._logger = logger or logging.getLogger("netsentinel.scan_service")
+        self._advisor = advisor or AISecurityAdvisor()
 
     def start_scan(self, *, target_host: str, ports: list[int], scan_type: str, protocol: str) -> HostScanResult:
         """Validate input, create a session, execute the scan, and return results."""
@@ -570,8 +583,9 @@ class ScanService:
         results = self.scan_host(session.id, target_host=target_host, ports=ports, protocol=protocol)
         statistics = self.calculate_statistics(results)
         finished_session = self.finish_scan(session.id, statistics=statistics)
+        open_ports = [result.port for result in results if result.status == "OPEN"]
 
-        return HostScanResult(
+        host_result = HostScanResult(
             scan_id=finished_session.id,
             target_host=finished_session.target_host,
             scan_type=finished_session.scan_type,
@@ -587,7 +601,17 @@ class ScanService:
             most_common_service=statistics["most_common_service"],
             status=finished_session.status,
             created_at=finished_session.created_at.isoformat() if finished_session.created_at else None,
+            open_ports_list=open_ports,
         )
+        assessment = self._advisor.analyze(host_result, results)
+        self._logger.info(
+            "AI Security Advisor completed for %s: risk_score=%s risk_level=%s confidence=%s%%",
+            target_host,
+            assessment.risk_score,
+            assessment.risk_level,
+            assessment.confidence,
+        )
+        return host_result
 
     def scan_host(self, session_id: int, *, target_host: str, ports: list[int], protocol: str) -> list[PortResult]:
         """Run the scanner against the provided ports and persist the results."""

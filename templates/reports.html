@@ -47,6 +47,11 @@
           <dt class="col-5 text-muted">Open Ports</dt><dd class="col-7">{{ latest_report.open_ports }}</dd>
           <dt class="col-5 text-muted">Closed Ports</dt><dd class="col-7">{{ latest_report.closed_ports }}</dd>
           <dt class="col-5 text-muted">Recommendations</dt><dd class="col-7">{{ latest_report.recommendations|length }}</dd>
+          {% if latest_report.ai_security_assessment %}
+            <dt class="col-5 text-muted">AI Risk Level</dt><dd class="col-7">{{ latest_report.ai_security_assessment.risk_level }}</dd>
+            <dt class="col-5 text-muted">AI Risk Score</dt><dd class="col-7">{{ latest_report.ai_security_assessment.risk_score }}/100</dd>
+            <dt class="col-5 text-muted">Confidence</dt><dd class="col-7">{{ latest_report.ai_security_assessment.confidence }}%</dd>
+          {% endif %}
         </dl>
       {% else %}
         <p class="text-muted mb-0">Run a scan to populate report snapshots and downloads.</p>

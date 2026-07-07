@@ -70,6 +70,35 @@ class InfrastructureOverview:
 
 
 @dataclass(slots=True)
+class SecurityFinding:
+    """A structured security finding identified during assessment."""
+
+    title: str
+    severity: str
+    description: str
+
+
+@dataclass(slots=True)
+class AdvisorRecommendation:
+    """A prioritized recommendation produced by the security advisor."""
+
+    text: str
+    priority: str
+
+
+@dataclass(slots=True)
+class SecurityAssessment:
+    """AI-assisted security assessment for a completed scan."""
+
+    risk_score: int
+    risk_level: str
+    executive_summary: str
+    findings: list[SecurityFinding]
+    recommendations: list[AdvisorRecommendation]
+    confidence: int
+
+
+@dataclass(slots=True)
 class HostScanResult:
     """Structured DTO representing the outcome of a completed host scan."""
 

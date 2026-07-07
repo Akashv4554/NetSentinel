@@ -23,6 +23,7 @@ from app.reporting.report_service import ReportingService
 from app.repositories import PortResultRepository
 from app.schemas import HostScanResult
 from app.services import (
+    AISecurityAdvisor,
     DashboardService,
     RecommendationEngine,
     ScanComparisonService,
@@ -151,6 +152,7 @@ def scan_details(scan_id: int) -> str:
     port_results = PortResultRepository().list_for_session(scan_id)
     host_result = _build_host_result(scan, port_results)
     recommendations = RecommendationEngine().generate(host_result)
+    security_assessment = AISecurityAdvisor().analyze(host_result, port_results)
     comparison_results = []
 
     previous_sessions = [item for item in scan_service.get_scan_history() if item.id != scan_id]
@@ -170,6 +172,7 @@ def scan_details(scan_id: int) -> str:
         scan_result=host_result,
         port_results=port_results,
         recommendations=recommendations.recommendations,
+        security_assessment=security_assessment,
         comparison_results=comparison_results,
         title="Scan Details",
     )
@@ -208,7 +211,12 @@ def reports() -> str:
         port_results = PortResultRepository().list_for_session(latest_scan.id)
         host_result = _build_host_result(latest_scan, port_results)
         security_report = RecommendationEngine().generate(host_result)
-        latest_report = ReportingService().generate_json_report(host_result, security_report)
+        security_assessment = AISecurityAdvisor().analyze(host_result, port_results)
+        latest_report = ReportingService().generate_json_report(
+            host_result,
+            security_report,
+            security_assessment,
+        )
 
     return render_template(
         "reports.html",
@@ -230,17 +238,22 @@ def download_report(scan_id: int, report_format: str) -> Response | Any:
     port_results = PortResultRepository().list_for_session(scan_id)
     host_result = _build_host_result(scan, port_results)
     security_report = RecommendationEngine().generate(host_result)
+    security_assessment = AISecurityAdvisor().analyze(host_result, port_results)
     reporting_service = ReportingService()
 
     if report_format == "pdf":
-        content = reporting_service.generate_pdf_report(host_result, security_report)
+        content = reporting_service.generate_pdf_report(host_result, security_report, security_assessment)
         return send_file(
             BytesIO(content),
             download_name=f"scan_{scan_id}.pdf",
             mimetype="application/pdf",
         )
     if report_format == "csv":
-        content = reporting_service.generate_csv_report(host_result)
+        content = reporting_service.generate_csv_report(
+            host_result,
+            port_results=port_results,
+            security_assessment=security_assessment,
+        )
         return Response(
             content,
             mimetype="text/csv",
@@ -248,7 +261,10 @@ def download_report(scan_id: int, report_format: str) -> Response | Any:
         )
     if report_format == "json":
         return Response(
-            __import__("json").dumps(reporting_service.generate_json_report(host_result, security_report), indent=2),
+            __import__("json").dumps(
+                reporting_service.generate_json_report(host_result, security_report, security_assessment),
+                indent=2,
+            ),
             mimetype="application/json",
             headers={"Content-Disposition": f"attachment; filename=scan_{scan_id}.json"},
         )

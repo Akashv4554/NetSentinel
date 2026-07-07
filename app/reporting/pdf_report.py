@@ -12,13 +12,18 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.schemas import HostScanResult, SecurityReport
+from app.schemas import HostScanResult, SecurityAssessment, SecurityReport
 
 
 class PDFReportBuilder:
     """Build a scan summary PDF report for a host scan."""
 
-    def build(self, scan_result: HostScanResult, security_report: SecurityReport) -> bytes:
+    def build(
+        self,
+        scan_result: HostScanResult,
+        security_report: SecurityReport,
+        security_assessment: SecurityAssessment | None = None,
+    ) -> bytes:
         """Create a PDF report in memory and return the bytes."""
         buffer = BytesIO()
         document = SimpleDocTemplate(
@@ -57,6 +62,34 @@ class PDFReportBuilder:
         ] or ["- No specific recommendations."]
         for item in recommendations:
             sections.append(Paragraph(item, body_style))
+        if security_assessment is not None:
+            sections.append(Spacer(1, 0.12 * inch))
+            sections.append(Paragraph("AI Security Assessment", styles["Heading2"]))
+            sections.append(
+                Paragraph(
+                    f"Risk Score: {security_assessment.risk_score}/100 | "
+                    f"Risk Level: {security_assessment.risk_level} | "
+                    f"Confidence: {security_assessment.confidence}%",
+                    body_style,
+                )
+            )
+            sections.append(Paragraph(security_assessment.executive_summary, body_style))
+            sections.append(Spacer(1, 0.08 * inch))
+            sections.append(Paragraph("Key Findings", styles["Heading3"]))
+            finding_lines = [
+                f"- {finding.title} ({finding.severity}): {finding.description}"
+                for finding in security_assessment.findings
+            ] or ["- No significant findings."]
+            for item in finding_lines:
+                sections.append(Paragraph(item, body_style))
+            sections.append(Spacer(1, 0.08 * inch))
+            sections.append(Paragraph("Advisor Recommendations", styles["Heading3"]))
+            advisor_lines = [
+                f"- {recommendation.text} (Priority: {recommendation.priority})"
+                for recommendation in security_assessment.recommendations
+            ] or ["- No advisor recommendations."]
+            for item in advisor_lines:
+                sections.append(Paragraph(item, body_style))
         sections.append(Spacer(1, 0.2 * inch))
         data = [
             ["Metric", "Value"],
