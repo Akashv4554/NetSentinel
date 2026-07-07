@@ -98,6 +98,24 @@ def test_dashboard_service_returns_summary_statistics_and_trends() -> None:
     assert service.get_top_open_ports(limit=5)[0]["port"] == 80
 
 
+def test_dashboard_service_returns_infrastructure_overview() -> None:
+    sessions, results = build_sessions_and_results()
+    service = DashboardService(
+        session_repo=FakeSessionRepository(sessions),
+        result_repo=FakePortResultRepository(results),
+    )
+
+    overview = service.get_infrastructure_overview()
+    summary = service.get_dashboard_summary()
+
+    assert overview.scanned_hosts == 1
+    assert overview.open_ports == 3
+    assert overview.critical_hosts == 0
+    assert overview.system_health_status == "Healthy"
+    assert summary["infrastructure_overview"].critical_hosts == overview.critical_hosts
+    assert summary["high_risk_hosts"] == overview.critical_hosts
+
+
 def test_dashboard_service_returns_chart_payloads() -> None:
     sessions, results = build_sessions_and_results()
     service = DashboardService(

@@ -18,6 +18,7 @@ from app.schemas import (
     ComparisonReport,
     HomePageData,
     HostScanResult,
+    InfrastructureOverview,
     Recommendation,
     SecurityReport,
     ServiceChange,
@@ -109,6 +110,52 @@ class AnalyticsService:
             return 0.0
         return round(sum(speeds) / len(speeds), 4)
 
+    def get_infrastructure_overview(self) -> InfrastructureOverview:
+        """Return a quick operational summary of the scanned environment."""
+        scanned_hosts = len({session.target_host for session in self._sessions if session.target_host})
+        open_ports = sum(1 for result in self._port_results if result.status == "OPEN")
+        critical_hosts = self.calculate_critical_hosts()
+        detected_services = len(
+            {
+                result.service_name
+                for result in self._port_results
+                if result.service_name and result.service_name.lower() != "unknown"
+            }
+        )
+        last_scan_at = max(
+            (session.created_at for session in self._sessions if session.created_at),
+            default=None,
+        )
+        last_scan_time = self._format_relative_time(last_scan_at) if last_scan_at else "Not recorded"
+        health = self.calculate_system_health(critical_hosts)
+        return InfrastructureOverview(
+            scanned_hosts=scanned_hosts,
+            open_ports=open_ports,
+            critical_hosts=critical_hosts,
+            detected_services=detected_services,
+            last_scan_time=last_scan_time,
+            last_scan_at=last_scan_at.isoformat() if last_scan_at else None,
+            system_health_status=health["status"],
+            system_health_badge_color=health["badge_color"],
+        )
+
+    def calculate_critical_hosts(self) -> int:
+        """Return the number of hosts classified as critical."""
+        return sum(
+            1
+            for _host, session in self._latest_session_per_host().items()
+            if self._is_host_critical(session, self._port_results_for_session(session))
+        )
+
+    @staticmethod
+    def calculate_system_health(critical_hosts: int) -> dict[str, str]:
+        """Derive overall system health from the critical host count."""
+        if critical_hosts == 0:
+            return {"status": "Healthy", "badge_color": "success"}
+        if critical_hosts <= 3:
+            return {"status": "Warning", "badge_color": "warning"}
+        return {"status": "Critical", "badge_color": "danger"}
+
     def _rank_items(self, values: list[Any], *, key_name: str, limit: int) -> list[dict[str, Any]]:
         """Rank values by frequency while preserving first-seen order for ties."""
         counts: dict[Any, int] = {}
@@ -129,6 +176,97 @@ class AnalyticsService:
             return ""
         iso_year, iso_week, _ = session.created_at.isocalendar()
         return f"{iso_year}-W{iso_week:02d}"
+
+    def _latest_session_per_host(self) -> dict[str, ScanSession]:
+        """Return the most recent scan session for each target host."""
+        latest: dict[str, ScanSession] = {}
+        for session in self._sessions:
+            host = session.target_host
+            if not host:
+                continue
+            existing = latest.get(host)
+            if existing is None:
+                latest[host] = session
+                continue
+            if session.created_at is None:
+                continue
+            if existing.created_at is None or session.created_at > existing.created_at:
+                latest[host] = session
+        return latest
+
+    def _port_results_for_session(self, session: ScanSession) -> list[PortResult]:
+        """Return port results associated with a scan session."""
+        if session.id is None:
+            return []
+        return [result for result in self._port_results if result.scan_session_id == session.id]
+
+    def _is_host_critical(self, session: ScanSession, port_results: list[PortResult]) -> bool:
+        """Determine whether a host meets any critical-risk criteria."""
+        open_ports = [result.port for result in port_results if result.status == "OPEN"]
+        if len(open_ports) > 5:
+            return True
+
+        host_result = self._build_host_scan_result(session, port_results)
+        security_report = RecommendationEngine().generate(host_result)
+        recommendation_engine = RecommendationEngine()
+        if recommendation_engine.is_high_risk(security_report):
+            return True
+        return recommendation_engine.aggregate_risk_score(security_report) >= 80
+
+    def _build_host_scan_result(self, session: ScanSession, port_results: list[PortResult]) -> HostScanResult:
+        """Create a host scan DTO from session and port result data."""
+        open_ports = [result.port for result in port_results if result.status == "OPEN"]
+        total_ports = session.total_ports or len(port_results)
+        duration = session.duration
+        return HostScanResult(
+            scan_id=session.id or 0,
+            target_host=session.target_host or "Unknown",
+            scan_type=session.scan_type or "tcp",
+            protocol=session.protocol or "tcp",
+            total_ports=total_ports,
+            open_ports=session.open_ports or len(open_ports),
+            closed_ports=session.closed_ports or 0,
+            filtered_ports=session.filtered_ports or 0,
+            duration=duration,
+            scan_speed=duration and total_ports / max(duration, 1e-9) or 0.0,
+            first_open_port=open_ports[0] if open_ports else None,
+            last_open_port=open_ports[-1] if open_ports else None,
+            most_common_service="Unknown",
+            status=session.status or "completed",
+            created_at=session.created_at.isoformat() if session.created_at else None,
+            open_ports_list=open_ports,
+        )
+
+    @staticmethod
+    def _format_relative_time(
+        timestamp: datetime,
+        *,
+        now: Optional[datetime] = None,
+    ) -> str:
+        """Format a timestamp as a human-readable relative time string."""
+        reference = now or datetime.now(timezone.utc)
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        if reference.tzinfo is None:
+            reference = reference.replace(tzinfo=timezone.utc)
+
+        elapsed_seconds = max(int((reference - timestamp).total_seconds()), 0)
+        if elapsed_seconds < 60:
+            return "just now"
+
+        elapsed_minutes = elapsed_seconds // 60
+        if elapsed_minutes < 60:
+            unit = "minute" if elapsed_minutes == 1 else "minutes"
+            return f"{elapsed_minutes} {unit} ago"
+
+        elapsed_hours = elapsed_minutes // 60
+        if elapsed_hours < 24:
+            unit = "hour" if elapsed_hours == 1 else "hours"
+            return f"{elapsed_hours} {unit} ago"
+
+        elapsed_days = elapsed_hours // 24
+        unit = "day" if elapsed_days == 1 else "days"
+        return f"{elapsed_days} {unit} ago"
 
 
 class RecommendationEngine:
@@ -153,6 +291,14 @@ class RecommendationEngine:
             )
 
         return SecurityReport(target_host=result.target_host, recommendations=recommendations)
+
+    def aggregate_risk_score(self, report: SecurityReport) -> int:
+        """Return the capped aggregate risk score used across security views."""
+        return min(sum(recommendation.risk_score for recommendation in report.recommendations), 100)
+
+    def is_high_risk(self, report: SecurityReport) -> bool:
+        """Return True when the recommendation engine classifies the host as high risk."""
+        return any(recommendation.severity == "high" for recommendation in report.recommendations)
 
     def _rule_for_port(self, port: int) -> Optional[dict[str, Any]]:
         """Return the recommendation template associated with a port."""
@@ -333,6 +479,10 @@ class DashboardService:
     def get_chart_data(self) -> dict[str, Any]:
         """Return Chart.js-ready chart payloads."""
         return self._analytics_service.get_chart_data()
+
+    def get_infrastructure_overview(self) -> InfrastructureOverview:
+        """Return the infrastructure overview widget payload."""
+        return self._analytics_service.get_infrastructure_overview()
 
 
 class ScanSessionService:

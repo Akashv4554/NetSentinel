@@ -35,6 +35,53 @@
   {% endfor %}
 </div>
 
+{% set overview = summary.infrastructure_overview %}
+<div class="row g-3 mb-4">
+  <div class="col-12">
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">
+          <i class="bi bi-hdd-network me-2" aria-hidden="true"></i>Infrastructure Overview
+        </h2>
+        {% if overview %}
+          <span class="badge badge-soft-{{ overview.system_health_badge_color }}">
+            {% if overview.system_health_status == 'Healthy' %}🟢{% elif overview.system_health_status == 'Warning' %}🟠{% else %}🔴{% endif %}
+            {{ overview.system_health_status }}
+          </span>
+        {% endif %}
+      </div>
+      <div class="row g-3">
+        {% set overview_metrics = [
+          ('Scanned Hosts', overview.scanned_hosts|default(0) if overview else 0, 'bi-pc-display'),
+          ('Open Ports', overview.open_ports|default(0) if overview else 0, 'bi-diagram-3'),
+          ('Critical Hosts', overview.critical_hosts|default(0) if overview else 0, 'bi-exclamation-octagon'),
+          ('Detected Services', overview.detected_services|default(0) if overview else 0, 'bi-gear-wide-connected'),
+          ('Last Scan', overview.last_scan_time|default('Not recorded') if overview else 'Not recorded', 'bi-clock-history'),
+          ('Overall Health', overview.system_health_status|default('Healthy') if overview else 'Healthy', 'bi-heart-pulse')
+        ] %}
+        {% for label, value, icon in overview_metrics %}
+          <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="border rounded p-3 h-100">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="metric-label small">{{ label }}</div>
+                  <div class="metric-value mt-2{% if label == 'Overall Health' and overview %} text-{{ overview.system_health_badge_color }}{% endif %}">
+                    {% if label == 'Overall Health' and overview %}
+                      {% if overview.system_health_status == 'Healthy' %}🟢{% elif overview.system_health_status == 'Warning' %}🟠{% else %}🔴{% endif %}
+                    {% endif %}
+                    {{ value }}
+                  </div>
+                </div>
+                <span class="metric-icon"><i class="bi {{ icon }}" aria-hidden="true"></i></span>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-4 mb-4">
   <div class="col-xl-6">
     <div class="card p-3 h-100">

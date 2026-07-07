@@ -9,6 +9,7 @@ from app.analytics.statistics import StatisticsBuilder
 from app.analytics.trends import TrendBuilder
 from app.models import PortResult, ScanSession
 from app.repositories import PortResultRepository, ScanSessionRepository
+from app.schemas import InfrastructureOverview
 
 
 class DashboardService:
@@ -34,7 +35,18 @@ class DashboardService:
         summary["daily"] = trends["daily"]
         summary["weekly"] = trends["weekly"]
         summary["monthly"] = trends["monthly"]
+        infrastructure_overview = self.get_infrastructure_overview()
+        summary["infrastructure_overview"] = infrastructure_overview
+        summary["high_risk_hosts"] = infrastructure_overview.critical_hosts
         return summary
+
+    def get_infrastructure_overview(self) -> InfrastructureOverview:
+        """Return the infrastructure overview widget payload."""
+        from app.services import AnalyticsService
+
+        sessions = self._load_sessions()
+        port_results = self._load_port_results(sessions)
+        return AnalyticsService(sessions=sessions, port_results=port_results).get_infrastructure_overview()
 
     def get_port_statistics(self) -> dict[str, Any]:
         statistics = self._build_statistics()

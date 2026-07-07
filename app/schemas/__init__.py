@@ -56,6 +56,20 @@ class HomePageData:
 
 
 @dataclass(slots=True)
+class InfrastructureOverview:
+    """Operational summary of the scanned infrastructure environment."""
+
+    scanned_hosts: int
+    open_ports: int
+    critical_hosts: int
+    detected_services: int
+    last_scan_time: str
+    last_scan_at: Optional[str]
+    system_health_status: str
+    system_health_badge_color: str
+
+
+@dataclass(slots=True)
 class HostScanResult:
     """Structured DTO representing the outcome of a completed host scan."""
 
