@@ -25,11 +25,13 @@ from app.schemas import (
 )
 from app.scanner.tcp import TCPScanner
 from app.services.ai_security_advisor import AISecurityAdvisor
+from app.services.network_monitor import NetworkMonitorService
 
 __all__ = [
     "AISecurityAdvisor",
     "AnalyticsService",
     "DashboardService",
+    "NetworkMonitorService",
     "RecommendationEngine",
     "ScanComparisonService",
     "ScanService",

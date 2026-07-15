@@ -83,6 +83,60 @@
 </div>
 
 <div class="row g-4 mb-4">
+  <div class="col-12">
+    <div class="card p-3" id="liveNetworkMonitorCard">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">
+          <i class="bi bi-activity me-2" aria-hidden="true"></i>Live Network Monitor
+        </h2>
+        <span class="badge badge-soft-secondary" id="networkMonitorUpdatedAt">Unavailable</span>
+      </div>
+      <div class="row g-3">
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Current Interface</div>
+            <div class="metric-value mt-2" id="networkInterfaceName">Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Bytes Sent</div>
+            <div class="metric-value mt-2" id="networkBytesSent">Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Bytes Received</div>
+            <div class="metric-value mt-2" id="networkBytesReceived">Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Packets Sent</div>
+            <div class="metric-value mt-2" id="networkPacketsSent">Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Packets Received</div>
+            <div class="metric-value mt-2" id="networkPacketsReceived">Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Current Upload Speed</div>
+            <div class="metric-value mt-2 text-danger" id="networkUploadSpeed">↑ Unavailable</div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="metric-label small">Current Download Speed</div>
+            <div class="metric-value mt-2 text-success" id="networkDownloadSpeed">↓ Unavailable</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="col-xl-6">
     <div class="card p-3 h-100">
       <div class="d-flex justify-content-between align-items-center mb-3">
@@ -213,5 +267,56 @@
     },
     options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
   });
+
+  const monitorElements = {
+    interfaceName: document.getElementById('networkInterfaceName'),
+    bytesSent: document.getElementById('networkBytesSent'),
+    bytesReceived: document.getElementById('networkBytesReceived'),
+    packetsSent: document.getElementById('networkPacketsSent'),
+    packetsReceived: document.getElementById('networkPacketsReceived'),
+    uploadSpeed: document.getElementById('networkUploadSpeed'),
+    downloadSpeed: document.getElementById('networkDownloadSpeed'),
+    updatedAt: document.getElementById('networkMonitorUpdatedAt')
+  };
+
+  const formatInteger = value => Number.isFinite(value)
+    ? value.toLocaleString('en-US')
+    : 'Unavailable';
+
+  const toUnavailableState = () => {
+    monitorElements.interfaceName.textContent = 'Unavailable';
+    monitorElements.bytesSent.textContent = 'Unavailable';
+    monitorElements.bytesReceived.textContent = 'Unavailable';
+    monitorElements.packetsSent.textContent = 'Unavailable';
+    monitorElements.packetsReceived.textContent = 'Unavailable';
+    monitorElements.uploadSpeed.textContent = '↑ Unavailable';
+    monitorElements.downloadSpeed.textContent = '↓ Unavailable';
+    monitorElements.updatedAt.textContent = 'Unavailable';
+  };
+
+  const refreshNetworkMonitor = async () => {
+    try {
+      const response = await fetch('{{ url_for("api.network_monitor") }}', { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      monitorElements.interfaceName.textContent = data.interface_name || 'Unknown';
+      monitorElements.bytesSent.textContent = formatInteger(data.bytes_sent);
+      monitorElements.bytesReceived.textContent = formatInteger(data.bytes_received);
+      monitorElements.packetsSent.textContent = formatInteger(data.packets_sent);
+      monitorElements.packetsReceived.textContent = formatInteger(data.packets_received);
+      monitorElements.uploadSpeed.textContent = `↑ ${data.upload_speed || 'Unavailable'}`;
+      monitorElements.downloadSpeed.textContent = `↓ ${data.download_speed || 'Unavailable'}`;
+      monitorElements.updatedAt.textContent = data.last_updated
+        ? new Date(data.last_updated).toLocaleTimeString()
+        : 'Unavailable';
+    } catch (_error) {
+      toUnavailableState();
+    }
+  };
+
+  refreshNetworkMonitor();
+  setInterval(refreshNetworkMonitor, 2000);
 </script>
 {% endblock %}

@@ -32,5 +32,12 @@ def test_api_health_and_scan_workflow() -> None:
         assert dashboard.status_code == 200
         assert dashboard.get_json()["total_scans"] >= 1
 
+        network_monitor = client.get("/api/network-monitor")
+        assert network_monitor.status_code == 200
+        network_payload = network_monitor.get_json()
+        assert "interface_name" in network_payload
+        assert "upload_speed" in network_payload
+        assert "download_speed" in network_payload
+
         delete_response = client.delete(f"/api/scans/{scan_response.get_json()['scan_id']}")
         assert delete_response.status_code == 200

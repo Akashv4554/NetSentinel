@@ -13,10 +13,11 @@ from flask import Blueprint, jsonify, request
 
 from app.extensions import db
 from app.repositories import PortResultRepository, ScanSessionRepository
-from app.services import ScanService, ScanSessionService
+from app.services import NetworkMonitorService, ScanService, ScanSessionService
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 logger = logging.getLogger("netsentinel.api")
+network_monitor_service = NetworkMonitorService()
 
 
 def _build_scan_service() -> ScanService:
@@ -243,3 +244,36 @@ def health() -> Any:
             "version": "1.0.0",
         }
     ), 200
+
+
+@api_bp.route("/network-monitor", methods=["GET"])
+def network_monitor() -> Any:
+    """Return local machine network monitor statistics."""
+    try:
+        snapshot = network_monitor_service.get_snapshot()
+        return jsonify(
+            {
+                "interface_name": snapshot.interface_name,
+                "bytes_sent": snapshot.bytes_sent,
+                "bytes_received": snapshot.bytes_received,
+                "packets_sent": snapshot.packets_sent,
+                "packets_received": snapshot.packets_received,
+                "upload_speed": snapshot.upload_speed_human,
+                "download_speed": snapshot.download_speed_human,
+                "last_updated": snapshot.last_updated,
+            }
+        ), 200
+    except Exception:  # pragma: no cover - defensive guard
+        logger.exception("Unexpected network monitor failure")
+        return jsonify(
+            {
+                "interface_name": "Unknown",
+                "bytes_sent": 0,
+                "bytes_received": 0,
+                "packets_sent": 0,
+                "packets_received": 0,
+                "upload_speed": "Unavailable",
+                "download_speed": "Unavailable",
+                "last_updated": None,
+            }
+        ), 200
