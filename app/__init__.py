@@ -36,12 +36,16 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     config_obj = resolve_config(config_name)
     app.config.from_object(config_obj)
 
-    app.config.from_mapping(
-        SQLALCHEMY_DATABASE_URI=app.config.get(
-            "SQLALCHEMY_DATABASE_URI",
-            f"sqlite:///{Path(app.instance_path, 'netsentinel.db').as_posix()}",
-        )
-    )
+    # Ensure instance directory exists BEFORE initializing database
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
+    # Set database URI based on config or use default SQLite path
+    if app.config.get("SQLALCHEMY_DATABASE_URI") is None:
+        if app.config.get("TESTING"):
+            app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        else:
+            db_path = Path(app.instance_path) / "netsentinel.db"
+            app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path.as_posix()}"
 
     initialize_extensions(app)
     register_blueprints(app)
@@ -76,8 +80,7 @@ def register_blueprints(app: Flask) -> None:
 
 def configure_logging(app: Flask) -> None:
     """Configure application logging for console and file output."""
-    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
-
+    # Instance directory already exists from create_app()
     if not app.logger.handlers:
         handler = RotatingFileHandler(
             Path(app.instance_path) / "netsentinel.log",
