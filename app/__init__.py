@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from app.config import Config, TestingConfig
 from app.extensions import db
+from sqlalchemy.exc import OperationalError
 from app.routes.api import api_bp
 from app.routes.main import main_bp
 from app.routes.ui import ui_bp
@@ -68,7 +69,13 @@ def initialize_extensions(app: Flask) -> None:
     db.init_app(app)
 
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except OperationalError as exc:
+            # Handle race/duplicate table situations during reloads/edits
+            app.logger.warning("Database initialization warning: %s", exc)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            app.logger.exception("Unexpected error creating database tables: %s", exc)
 
 
 def register_blueprints(app: Flask) -> None:
