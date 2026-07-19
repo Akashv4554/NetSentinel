@@ -8,6 +8,7 @@ from typing import Any
 from app.models import PortResult
 from app.schemas import AdvisorRecommendation, HostScanResult, SecurityAssessment, SecurityFinding
 from app.services.security_advisor.base import SecurityAssessmentProvider
+from app.services.security_advisor.cve_enricher import CVEEnricher
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,13 @@ class RuleBasedSecurityAssessmentProvider(SecurityAssessmentProvider):
         open_results = [result for result in port_results if result.status == "OPEN"]
         open_ports = {result.port for result in open_results}
         findings = self._build_findings(open_results, open_ports)
+        # Enrich findings with CVE matches (best-effort).
+        try:
+            enricher = CVEEnricher()
+            self._enrich_findings_with_cves(open_results, findings, enricher)
+        except Exception:
+            # Keep rule-based behavior if enrichment fails
+            logger.debug("CVE enrichment failed; continuing without CVE data", exc_info=True)
         recommendations = self._build_recommendations(open_results, open_ports)
         risk_score = self.calculate_risk_score(open_results)
         risk_level = self.calculate_risk_level(risk_score)
@@ -86,6 +94,62 @@ class RuleBasedSecurityAssessmentProvider(SecurityAssessmentProvider):
             confidence,
         )
         return assessment
+
+    def _enrich_findings_with_cves(
+        self, open_results: list[PortResult], findings: list[SecurityFinding], enricher: CVEEnricher
+    ) -> None:
+        """Augment findings with CVE data for detected services.
+
+        Adds a new finding entry for each high-severity CVE discovered and
+        lightly penalizes the risk score later by attaching a metadata
+        effect via findings descriptions.
+        """
+        seen_titles = {f.title for f in findings}
+
+        for result in open_results:
+            svc = (result.service_name or "").strip()
+            if not svc:
+                continue
+
+            # Query NVD for the service name; include port to reduce noise
+            keyword = f"{svc} port {result.port}"
+            matches = enricher.match_keyword(keyword)
+
+            # If no matches using the port, try service name only
+            if not matches:
+                matches = enricher.match_keyword(svc)
+
+            # Add up to 2 highest CVSS findings per port
+            matches = [m for m in matches if m.get("cve_id")]
+            if not matches:
+                continue
+
+            # sort by cvss desc (None last)
+            matches.sort(key=lambda x: (-(x["cvss"] or 0.0)))
+
+            for m in matches[:2]:
+                cvss = m.get("cvss")
+                severity = "Unknown"
+                if cvss is not None:
+                    if cvss >= 9.0:
+                        severity = "Critical"
+                    elif cvss >= 7.0:
+                        severity = "High"
+                    elif cvss >= 4.0:
+                        severity = "Medium"
+                    else:
+                        severity = "Low"
+
+                title = f"{m.get('cve_id')} affecting {svc}"
+                if title in seen_titles:
+                    continue
+
+                desc = f"{m.get('summary') or ''}"
+                if cvss is not None:
+                    desc = f"CVSS: {cvss}. " + desc
+
+                findings.append(SecurityFinding(title=title, severity=severity, description=desc))
+                seen_titles.add(title)
 
     def calculate_risk_score(self, open_results: list[PortResult]) -> int:
         """Calculate risk score starting at 100 and subtracting based on findings."""

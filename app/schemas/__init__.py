@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 
 
 @dataclass(slots=True)
@@ -76,6 +76,17 @@ class SecurityFinding:
     title: str
     severity: str
     description: str
+    cves: Optional[List[dict]] = None
+
+
+@dataclass(slots=True)
+class CVEEntry:
+    """Represents a single CVE entry returned from an enrichment source."""
+
+    cve_id: str
+    summary: str
+    cvss: Optional[float]
+    references: Optional[List[str]] = None
 
 
 @dataclass(slots=True)

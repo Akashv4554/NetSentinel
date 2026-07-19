@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 
 from app.config import Config, TestingConfig
 from app.extensions import db
+from sqlalchemy.exc import OperationalError
 from app.routes.api import api_bp
 from app.routes.main import main_bp
 from app.routes.ui import ui_bp
@@ -36,12 +37,16 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     config_obj = resolve_config(config_name)
     app.config.from_object(config_obj)
 
-    app.config.from_mapping(
-        SQLALCHEMY_DATABASE_URI=app.config.get(
-            "SQLALCHEMY_DATABASE_URI",
-            f"sqlite:///{Path(app.instance_path, 'netsentinel.db').as_posix()}",
-        )
-    )
+    # Ensure instance directory exists BEFORE initializing database
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
+    # Set database URI based on config or use default SQLite path
+    if app.config.get("SQLALCHEMY_DATABASE_URI") is None:
+        if app.config.get("TESTING"):
+            app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        else:
+            db_path = Path(app.instance_path) / "netsentinel.db"
+            app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{db_path.as_posix()}"
 
     initialize_extensions(app)
     register_blueprints(app)
@@ -64,7 +69,13 @@ def initialize_extensions(app: Flask) -> None:
     db.init_app(app)
 
     with app.app_context():
-        db.create_all()
+        try:
+            db.create_all()
+        except OperationalError as exc:
+            # Handle race/duplicate table situations during reloads/edits
+            app.logger.warning("Database initialization warning: %s", exc)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            app.logger.exception("Unexpected error creating database tables: %s", exc)
 
 
 def register_blueprints(app: Flask) -> None:
@@ -76,8 +87,7 @@ def register_blueprints(app: Flask) -> None:
 
 def configure_logging(app: Flask) -> None:
     """Configure application logging for console and file output."""
-    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
-
+    # Instance directory already exists from create_app()
     if not app.logger.handlers:
         handler = RotatingFileHandler(
             Path(app.instance_path) / "netsentinel.log",

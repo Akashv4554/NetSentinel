@@ -57,3 +57,40 @@ class PortResult(db.Model):  # type: ignore[name-defined]
     error_message = db.Column(db.Text, nullable=True)
 
     scan_session = db.relationship("ScanSession", back_populates="port_results")
+
+
+class Vulnerability(db.Model):  # type: ignore[name-defined]
+    """Represents a vulnerability instance (CVE) discovered or recorded in the system."""
+
+    __tablename__ = "vulnerabilities"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cve_id = db.Column(db.String(50), nullable=False, index=True)
+    summary = db.Column(db.Text, nullable=True)
+    cvss = db.Column(db.Float, nullable=True)
+    references = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    vulnerable_ports = db.relationship(
+        "VulnerablePort",
+        back_populates="vulnerability",
+        cascade="all, delete-orphan",
+        lazy="select",
+    )
+
+
+class VulnerablePort(db.Model):  # type: ignore[name-defined]
+    """Join table linking a `PortResult` to discovered `Vulnerability` entries."""
+
+    __tablename__ = "vulnerable_ports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    port_result_id = db.Column(
+        db.Integer, db.ForeignKey("port_results.id", ondelete="CASCADE"), nullable=False
+    )
+    vulnerability_id = db.Column(
+        db.Integer, db.ForeignKey("vulnerabilities.id", ondelete="CASCADE"), nullable=False
+    )
+
+    port_result = db.relationship("PortResult", backref="vulnerable_links")
+    vulnerability = db.relationship("Vulnerability", back_populates="vulnerable_ports")
