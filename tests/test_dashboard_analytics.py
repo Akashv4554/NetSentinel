@@ -20,6 +20,9 @@ class FakePortResultRepository(PortResultRepository):
     def list_for_session(self, session_id: int) -> list[PortResult]:
         return [result for result in self._results if result.scan_session_id == session_id]
 
+    def list_for_sessions(self, session_ids: list[int]) -> list[PortResult]:
+        return [result for result in self._results if result.scan_session_id in session_ids]
+
 
 def build_sessions_and_results() -> tuple[list[ScanSession], list[PortResult]]:
     sessions = [

@@ -57,3 +57,24 @@ class PortResult(db.Model):  # type: ignore[name-defined]
     error_message = db.Column(db.Text, nullable=True)
 
     scan_session = db.relationship("ScanSession", back_populates="port_results")
+
+
+class QNNPredictionHistory(db.Model):  # type: ignore[name-defined]
+    """Represents a logged prediction executed by the QNN model."""
+
+    __tablename__ = "qnn_prediction_history"
+
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    duration = db.Column(db.Float, nullable=True)
+    src_bytes = db.Column(db.Integer, nullable=True)
+    dst_bytes = db.Column(db.Integer, nullable=True)
+    attack_type = db.Column(db.String(100), nullable=False)
+    probability = db.Column(db.Float, nullable=False)
+    confidence = db.Column(db.Float, nullable=False)
+    prediction_label = db.Column(db.String(50), nullable=False)
+

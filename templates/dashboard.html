@@ -1,6 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
+<style>
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.02); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-pulse {
+  animation: pulse 1.5s infinite ease-in-out;
+  display: inline-block;
+}
+</style>
 <div class="page-heading">
   <div>
     <h1 class="h3">Dashboard</h1>
@@ -132,6 +143,46 @@
           <div class="border rounded p-3 h-100">
             <div class="metric-label small">Current Download Speed</div>
             <div class="metric-value mt-2 text-success" id="networkDownloadSpeed">↓ Unavailable</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card p-3" id="qnnMonitorCard">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">
+          <i class="bi bi-cpu me-2" aria-hidden="true"></i>Hybrid QNN Anomaly Detection (Quantum IDS)
+        </h2>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="badge" id="qnnModelTrainedBadge">Checking...</span>
+          <span class="badge" id="qnnStatusBadge">Checking...</span>
+        </div>
+      </div>
+      <div class="row g-3 align-items-center">
+        <div class="col-md-4">
+          <div class="border rounded p-3 h-100 text-center">
+            <div class="metric-label small">Quantum Intrusion Status</div>
+            <div class="metric-value mt-2 fw-bold text-success" id="qnnIntrusionState">Checking...</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="border rounded p-3 h-100 text-center">
+            <div class="metric-label small">Anomaly Probability Score</div>
+            <div class="metric-value mt-2 text-primary" id="qnnAnomalyScore">0.00%</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="border rounded p-3 h-100 d-flex flex-column justify-content-center align-items-center gap-2">
+            <div class="metric-label small">Intrusion Detection Controls</div>
+            <button class="btn btn-outline-primary btn-sm mt-1 w-100" id="btnTrainQNN" onclick="triggerQNNTraining()">
+              <i class="bi bi-lightning-charge me-1"></i>Train QNN Model
+            </button>
+            <div class="progress w-100 d-none" id="qnnTrainProgressBar" style="height: 6px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;"></div>
+            </div>
+            <small class="text-muted d-none" id="qnnTrainProgressText">Training epoch 0/5...</small>
           </div>
         </div>
       </div>
@@ -318,5 +369,126 @@
 
   refreshNetworkMonitor();
   setInterval(refreshNetworkMonitor, 2000);
+
+  const qnnElements = {
+    card: document.getElementById('qnnMonitorCard'),
+    trainedBadge: document.getElementById('qnnModelTrainedBadge'),
+    statusBadge: document.getElementById('qnnStatusBadge'),
+    stateText: document.getElementById('qnnIntrusionState'),
+    scoreText: document.getElementById('qnnAnomalyScore'),
+    btnTrain: document.getElementById('btnTrainQNN'),
+    progressBar: document.getElementById('qnnTrainProgressBar'),
+    progressBarInner: document.querySelector('#qnnTrainProgressBar .progress-bar'),
+    progressText: document.getElementById('qnnTrainProgressText')
+  };
+
+  let isTraining = false;
+
+  const refreshQNNMonitor = async () => {
+    if (isTraining) return;
+    try {
+      const response = await fetch('{{ url_for("qnn.qnn_status") }}', { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      qnnElements.trainedBadge.textContent = data.trained_status;
+      if (data.model_trained) {
+        qnnElements.trainedBadge.className = 'badge bg-success';
+        qnnElements.btnTrain.textContent = 'Retrain QNN Model';
+      } else {
+        qnnElements.trainedBadge.className = 'badge bg-warning text-dark';
+        qnnElements.btnTrain.textContent = 'Train QNN Model';
+      }
+
+      qnnElements.stateText.textContent = data.prediction;
+      qnnElements.scoreText.textContent = `${(data.anomaly_score * 100).toFixed(2)}%`;
+
+      if (data.prediction_badge_color === 'success') {
+        qnnElements.stateText.className = 'metric-value mt-2 fw-bold text-success';
+        qnnElements.statusBadge.textContent = 'SECURE';
+        qnnElements.statusBadge.className = 'badge bg-success';
+      } else if (data.prediction_badge_color === 'danger') {
+        qnnElements.stateText.className = 'metric-value mt-2 fw-bold text-danger animate-pulse';
+        qnnElements.statusBadge.textContent = 'ALERT';
+        qnnElements.statusBadge.className = 'badge bg-danger';
+      } else {
+        qnnElements.stateText.className = 'metric-value mt-2 fw-bold text-warning';
+        qnnElements.statusBadge.textContent = 'INACTIVE';
+        qnnElements.statusBadge.className = 'badge bg-secondary';
+      }
+    } catch (err) {
+      qnnElements.trainedBadge.textContent = 'Error';
+      qnnElements.trainedBadge.className = 'badge bg-danger';
+      qnnElements.stateText.textContent = 'Unavailable';
+      qnnElements.stateText.className = 'metric-value mt-2 text-muted';
+      qnnElements.scoreText.textContent = '0.00%';
+      qnnElements.statusBadge.textContent = 'ERROR';
+      qnnElements.statusBadge.className = 'badge bg-danger';
+    }
+  };
+
+  const triggerQNNTraining = async () => {
+    try {
+      qnnElements.btnTrain.disabled = true;
+      qnnElements.progressBar.classList.remove('d-none');
+      qnnElements.progressText.classList.remove('d-none');
+      qnnElements.progressBarInner.style.width = '0%';
+      qnnElements.progressText.textContent = 'Starting training...';
+      isTraining = true;
+
+      const response = await fetch('{{ url_for("qnn.start_qnn_train") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epochs: 5 })
+      });
+
+      if (!response.ok) throw new Error('Failed to start training');
+
+      pollTrainingStatus();
+    } catch (err) {
+      alert(`Error starting training: ${err.message}`);
+      resetTrainingUI();
+    }
+  };
+
+  const resetTrainingUI = () => {
+    isTraining = false;
+    qnnElements.btnTrain.disabled = false;
+    qnnElements.progressBar.classList.add('d-none');
+    qnnElements.progressText.classList.add('d-none');
+    refreshQNNMonitor();
+  };
+
+  const pollTrainingStatus = () => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('{{ url_for("qnn.get_qnn_train_status") }}', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Error checking status');
+        const data = await response.json();
+
+        if (data.status === 'training') {
+          const pct = Math.round((data.epoch / data.total_epochs) * 100);
+          qnnElements.progressBarInner.style.width = `${pct}%`;
+          qnnElements.progressText.textContent = `Epoch ${data.epoch}/${data.total_epochs} (Loss: ${data.loss || '0.0000'})`;
+        } else if (data.status === 'completed') {
+          clearInterval(interval);
+          qnnElements.progressBarInner.style.width = '100%';
+          qnnElements.progressText.textContent = 'Training completed successfully!';
+          setTimeout(resetTrainingUI, 1500);
+        } else if (data.status === 'failed') {
+          clearInterval(interval);
+          alert(`Training failed: ${data.error || 'Unknown error'}`);
+          resetTrainingUI();
+        }
+      } catch (err) {
+        clearInterval(interval);
+        alert(`Error polling training status: ${err.message}`);
+        resetTrainingUI();
+      }
+    }, 1000);
+  };
+
+  refreshQNNMonitor();
+  setInterval(refreshQNNMonitor, 3000);
 </script>
 {% endblock %}

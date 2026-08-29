@@ -15,6 +15,8 @@ from app.extensions import db
 from app.repositories import PortResultRepository, ScanSessionRepository
 from app.services import NetworkMonitorService, ScanService, ScanSessionService
 
+import threading
+
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 logger = logging.getLogger("netsentinel.api")
 network_monitor_service = NetworkMonitorService()
@@ -277,3 +279,4 @@ def network_monitor() -> Any:
                 "last_updated": None,
             }
         ), 200
+

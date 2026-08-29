@@ -300,6 +300,18 @@ def about() -> str:
     return render_template("about.html", title="About")
 
 
+@ui_bp.route("/ai-threat-detection")
+def ai_threat_detection() -> str:
+    """Render the AI Threat Detection QNN dashboard page."""
+    from qnn.utils import is_model_trained
+    trained = is_model_trained()
+    return render_template(
+        "ai_threat_detection.html",
+        title="AI Threat Detection",
+        model_trained=trained
+    )
+
+
 def _build_host_result(scan: Any, port_results: list[PortResult]) -> HostScanResult:
     """Create a schema DTO from repository-backed session data."""
     open_ports = [result.port for result in port_results if result.status == "OPEN"]

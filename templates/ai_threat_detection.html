@@ -1,0 +1,501 @@
+{% extends 'base.html' %}
+{% block title %}AI Threat Detection{% endblock %}
+
+{% block content %}
+<div class="page-heading d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3"><i class="bi bi-cpu text-primary me-2"></i>AI Threat Detection</h1>
+    <p class="text-muted mb-0">Vectorized Hybrid Quantum Neural Network (QNN) for real-time intrusion monitoring.</p>
+  </div>
+  <div>
+    <a href="{{ url_for('qnn.download_model') }}" class="btn btn-outline-secondary" id="btnDownloadModel">
+      <i class="bi bi-download me-1"></i>Download Model Checkpoint
+    </a>
+  </div>
+</div>
+
+<!-- Row 1: Dataset Upload & Training Panel -->
+<div class="row g-4 mb-4">
+  <!-- Dataset Upload -->
+  <div class="col-xl-6">
+    <div class="card p-4 h-100 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-database-up text-primary me-2"></i>Dataset Management</h2>
+      <p class="text-muted small">Upload a custom NSL-KDD dataset in CSV format. If no dataset is uploaded, the platform will automatically generate a mock dataset to allow testing out-of-the-box.</p>
+      
+      <form id="uploadDatasetForm" class="mt-3">
+        <div class="mb-3">
+          <label for="datasetFile" class="form-label small fw-semibold">Select NSL-KDD CSV File</label>
+          <input class="form-control" type="file" id="datasetFile" accept=".csv" required>
+        </div>
+        <button type="submit" class="btn btn-primary w-100" id="btnUpload">
+          <i class="bi bi-cloud-upload me-1"></i>Upload Dataset
+        </button>
+      </form>
+      <div class="alert alert-info mt-3 py-2 px-3 small border-0 d-none" id="uploadStatusAlert"></div>
+    </div>
+  </div>
+
+  <!-- QNN Training Console -->
+  <div class="col-xl-6">
+    <div class="card p-4 h-100 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-gear-wide-connected text-primary me-2"></i>QNN Training Console</h2>
+      <div class="row g-2 mb-3">
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Epochs</label>
+          <input type="number" class="form-control" id="trainEpochs" value="10" min="2" max="50">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">Qubits Count</label>
+          <select class="form-select" id="trainQubits">
+            <option value="2">2 Qubits</option>
+            <option value="4" selected>4 Qubits</option>
+            <option value="6">6 Qubits</option>
+            <option value="8">8 Qubits</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-semibold">VQC Layers</label>
+          <input type="number" class="form-control" id="trainLayers" value="2" min="1" max="10">
+        </div>
+      </div>
+
+      <button class="btn btn-outline-primary w-100" id="btnTrain" onclick="startTraining()">
+        <i class="bi bi-lightning-charge me-1"></i>Trigger Model Training
+      </button>
+
+      <!-- Training Progress Monitor -->
+      <div class="mt-4 d-none" id="trainingProgressBox">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small fw-semibold text-primary" id="trainingStatusHeader">Model training in progress...</span>
+          <span class="small text-muted" id="trainingEpochText">Epoch 0/10</span>
+        </div>
+        <div class="progress mb-2" style="height: 10px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" id="trainingProgressBar"></div>
+        </div>
+        <div class="d-flex justify-content-between text-muted small">
+          <span id="trainingLossText">Train Loss: 0.0000</span>
+          <span id="trainingValLossText">Val Loss: 0.0000</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Evaluation Metrics -->
+<div class="row g-3 mb-4">
+  <div class="col"><div class="card p-3 shadow-sm border-0 text-center"><div class="small text-muted">Accuracy</div><div class="metric-value text-primary mt-1 fw-bold h3" id="metricAccuracy">--</div></div></div>
+  <div class="col"><div class="card p-3 shadow-sm border-0 text-center"><div class="small text-muted">Precision</div><div class="metric-value text-primary mt-1 fw-bold h3" id="metricPrecision">--</div></div></div>
+  <div class="col"><div class="card p-3 shadow-sm border-0 text-center"><div class="small text-muted">Recall</div><div class="metric-value text-primary mt-1 fw-bold h3" id="metricRecall">--</div></div></div>
+  <div class="col"><div class="card p-3 shadow-sm border-0 text-center"><div class="small text-muted">F1 Score</div><div class="metric-value text-primary mt-1 fw-bold h3" id="metricF1">--</div></div></div>
+  <div class="col"><div class="card p-3 shadow-sm border-0 text-center"><div class="small text-muted">ROC-AUC</div><div class="metric-value text-primary mt-1 fw-bold h3" id="metricAUC">--</div></div></div>
+</div>
+
+<!-- Row 3: Visual Analytics Charts -->
+<div class="row g-4 mb-4">
+  <div class="col-xl-6">
+    <div class="card p-4 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-graph-up text-primary me-2"></i>QNN Validation Accuracy</h2>
+      <div style="height: 250px;"><canvas id="valAccuracyChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card p-4 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-activity text-primary me-2"></i>QNN Validation Loss</h2>
+      <div style="height: 250px;"><canvas id="valLossChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 4: Manual Predictor & History Log -->
+<div class="row g-4">
+  <!-- Manual Predictor -->
+  <div class="col-xl-5">
+    <div class="card p-4 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-send text-primary me-2"></i>Interactive Manual Predictor</h2>
+      <p class="text-muted small">Manually input network connection parameters to classify them in real-time using the trained QNN model.</p>
+      
+      <form id="manualPredictForm" class="mt-3">
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Duration (sec)</label>
+            <input type="number" step="any" class="form-control form-control-sm" id="predictDuration" value="0" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Source Bytes</label>
+            <input type="number" class="form-control form-control-sm" id="predictSrcBytes" value="1000" required>
+          </div>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Destination Bytes</label>
+            <input type="number" class="form-control form-control-sm" id="predictDstBytes" value="2000" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-semibold">Src Conn Count</label>
+            <input type="number" class="form-control form-control-sm" id="predictCount" value="10" required>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-semibold">Srv Conn Count</label>
+          <input type="number" class="form-control form-control-sm" id="predictSrvCount" value="10" required>
+        </div>
+
+        <button type="submit" class="btn btn-outline-primary w-100" id="btnPredictManual">
+          <i class="bi bi-shield-shaded me-1"></i>Predict Threat Posture
+        </button>
+      </form>
+
+      <!-- Prediction Output Result -->
+      <div class="mt-3 p-3 rounded bg-light border border-secondary border-opacity-10 d-none" id="predictionResultBox">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="fw-semibold small">Detection Verdict:</span>
+          <span class="badge" id="verdictBadge">Normal</span>
+        </div>
+        <div class="row text-center mt-2 g-2">
+          <div class="col-4">
+            <div class="small text-muted" style="font-size: 10px;">PROBABILITY</div>
+            <div class="fw-bold" id="verdictProbability">0.00%</div>
+          </div>
+          <div class="col-4">
+            <div class="small text-muted" style="font-size: 10px;">CONFIDENCE</div>
+            <div class="fw-bold" id="verdictConfidence">0.00%</div>
+          </div>
+          <div class="col-4">
+            <div class="small text-muted" style="font-size: 10px;">ATTACK TYPE</div>
+            <div class="fw-bold text-truncate" id="verdictAttack">Normal</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Prediction History Log -->
+  <div class="col-xl-7">
+    <div class="card p-4 shadow-sm border-0">
+      <h2 class="h5 mb-3"><i class="bi bi-receipt text-primary me-2"></i>QNN Prediction History</h2>
+      <div class="table-responsive" style="max-height: 330px;">
+        <table class="table table-hover align-middle table-sm" id="predictionHistoryTable">
+          <thead class="table-light">
+            <tr>
+              <th class="small">Time</th>
+              <th class="small text-end">Src/Dst Bytes</th>
+              <th class="small text-center">Verdict</th>
+              <th class="small text-end">Confidence</th>
+              <th class="small">Attack Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4 small">No prediction logs available.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let accChart = null;
+  let lossChart = null;
+
+  // Initialize and load historical accuracy charts
+  const loadCharts = (historyData) => {
+    const labels = historyData.train_loss.map((_, idx) => `Epoch ${idx + 1}`);
+
+    const ctxAcc = document.getElementById('valAccuracyChart').getContext('2d');
+    const ctxLoss = document.getElementById('valLossChart').getContext('2d');
+
+    if (accChart) accChart.destroy();
+    if (lossChart) lossChart.destroy();
+
+    accChart = new Chart(ctxAcc, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Train Accuracy',
+            data: historyData.train_acc,
+            borderColor: '#376c91',
+            backgroundColor: 'rgba(55, 108, 145, 0.1)',
+            tension: 0.25,
+            fill: true
+          },
+          {
+            label: 'Validation Accuracy',
+            data: historyData.val_acc,
+            borderColor: '#2e7d32',
+            backgroundColor: 'rgba(46, 125, 50, 0.1)',
+            tension: 0.25,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { min: 0.0, max: 1.05 } }
+      }
+    });
+
+    lossChart = new Chart(ctxLoss, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Train Loss',
+            data: historyData.train_loss,
+            borderColor: '#c62828',
+            backgroundColor: 'rgba(198, 40, 40, 0.1)',
+            tension: 0.25,
+            fill: true
+          },
+          {
+            label: 'Validation Loss',
+            data: historyData.val_loss,
+            borderColor: '#376c91',
+            backgroundColor: 'rgba(55, 108, 145, 0.1)',
+            tension: 0.25,
+            fill: true
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { min: 0.0 } }
+      }
+    });
+
+    // Populate scalar metric cards with values from the final epoch
+    const lastIdx = historyData.train_loss.length - 1;
+    document.getElementById('metricAccuracy').textContent = `${(historyData.val_acc[lastIdx] * 100).toFixed(2)}%`;
+    document.getElementById('metricPrecision').textContent = `${(historyData.val_precision[lastIdx] * 100).toFixed(2)}%`;
+    document.getElementById('metricRecall').textContent = `${(historyData.val_recall[lastIdx] * 100).toFixed(2)}%`;
+    document.getElementById('metricF1').textContent = `${(historyData.val_f1[lastIdx] * 100).toFixed(2)}%`;
+    document.getElementById('metricAUC').textContent = `${(historyData.val_auc[lastIdx] * 100).toFixed(2)}%`;
+  };
+
+  const fetchTrainingHistory = async () => {
+    try {
+      const response = await fetch('{{ url_for("qnn.get_training_history") }}');
+      if (response.ok) {
+        const data = await response.json();
+        loadCharts(data);
+      }
+    } catch (err) {
+      console.error("Failed to load training history", err);
+    }
+  };
+
+  // Dataset Upload Handler
+  document.getElementById('uploadDatasetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const alertBox = document.getElementById('uploadStatusAlert');
+    const uploadBtn = document.getElementById('btnUpload');
+    const fileInput = document.getElementById('datasetFile');
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      uploadBtn.disabled = true;
+      alertBox.classList.remove('d-none', 'alert-danger', 'alert-success');
+      alertBox.classList.add('alert-info');
+      alertBox.textContent = 'Uploading dataset...';
+
+      const response = await fetch('{{ url_for("qnn.upload_dataset") }}', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        alertBox.className = 'alert alert-success mt-3 py-2 px-3 small border-0';
+        alertBox.textContent = data.message;
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (err) {
+      alertBox.className = 'alert alert-danger mt-3 py-2 px-3 small border-0';
+      alertBox.textContent = `Error: ${err.message}`;
+    } finally {
+      uploadBtn.disabled = false;
+    }
+  });
+
+  // Background Training Poller
+  const progressBox = document.getElementById('trainingProgressBox');
+  const progressBar = document.getElementById('trainingProgressBar');
+  const progressHeader = document.getElementById('trainingStatusHeader');
+  const epochText = document.getElementById('trainingEpochText');
+  const lossText = document.getElementById('trainingLossText');
+  const valLossText = document.getElementById('trainingValLossText');
+  const trainBtn = document.getElementById('btnTrain');
+
+  const pollStatus = () => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('{{ url_for("qnn.get_qnn_train_status") }}');
+        if (!response.ok) throw new Error('Status check failed');
+        const data = await response.json();
+
+        if (data.status === 'training') {
+          trainBtn.disabled = true;
+          progressBox.classList.remove('d-none');
+          const pct = Math.round((data.epoch / data.total_epochs) * 100);
+          progressBar.style.width = `${pct}%`;
+          epochText.textContent = `Epoch ${data.epoch}/${data.total_epochs}`;
+          lossText.textContent = `Train Loss: ${data.loss.toFixed(4)}`;
+          valLossText.textContent = `Val Loss: ${data.val_loss.toFixed(4)}`;
+        } else if (data.status === 'completed') {
+          clearInterval(interval);
+          progressBar.style.width = '100%';
+          progressHeader.textContent = 'Training completed successfully!';
+          setTimeout(() => {
+            progressBox.classList.add('d-none');
+            trainBtn.disabled = false;
+            fetchTrainingHistory();
+          }, 1500);
+        } else if (data.status === 'failed') {
+          clearInterval(interval);
+          alert(`Training failed: ${data.error}`);
+          progressBox.classList.add('d-none');
+          trainBtn.disabled = false;
+        }
+      } catch (err) {
+        clearInterval(interval);
+        console.error("Error polling status", err);
+        trainBtn.disabled = false;
+      }
+    }, 1000);
+  };
+
+  const startTraining = async () => {
+    const epochs = document.getElementById('trainEpochs').value;
+    const qubits = document.getElementById('trainQubits').value;
+    const layers = document.getElementById('trainLayers').value;
+
+    try {
+      trainBtn.disabled = true;
+      progressBox.classList.remove('d-none');
+      progressHeader.textContent = 'Starting training...';
+      progressBar.style.width = '0%';
+
+      const response = await fetch('{{ url_for("qnn.start_qnn_train") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epochs: parseInt(epochs), qubits: parseInt(qubits), layers: parseInt(layers) })
+      });
+
+      if (!response.ok) throw new Error('Failed to submit training request.');
+      pollStatus();
+    } catch (err) {
+      alert(`Error starting training: ${err.message}`);
+      progressBox.classList.add('d-none');
+      trainBtn.disabled = false;
+    }
+  };
+
+  // Manual Prediction Handler
+  document.getElementById('manualPredictForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const duration = document.getElementById('predictDuration').value;
+    const srcBytes = document.getElementById('predictSrcBytes').value;
+    const dstBytes = document.getElementById('predictDstBytes').value;
+    const count = document.getElementById('predictCount').value;
+    const srvCount = document.getElementById('predictSrvCount').value;
+
+    const resultBox = document.getElementById('predictionResultBox');
+    const badge = document.getElementById('verdictBadge');
+    const probText = document.getElementById('verdictProbability');
+    const confText = document.getElementById('verdictConfidence');
+    const attackText = document.getElementById('verdictAttack');
+
+    try {
+      document.getElementById('btnPredictManual').disabled = true;
+      const response = await fetch('{{ url_for("qnn.predict") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: parseFloat(duration),
+          src_bytes: parseInt(srcBytes),
+          dst_bytes: parseInt(dstBytes),
+          count: parseInt(count),
+          srv_count: parseInt(srvCount)
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+
+      const p = data.prediction;
+      resultBox.classList.remove('d-none');
+      
+      probText.textContent = `${(p.probability * 100).toFixed(2)}%`;
+      confText.textContent = `${(p.confidence * 100).toFixed(2)}%`;
+      attackText.textContent = p.attack_type;
+      badge.textContent = p.prediction_label;
+
+      if (p.prediction_label === 'Intrusion') {
+        badge.className = 'badge bg-danger animate-pulse';
+        attackText.className = 'fw-bold text-danger text-truncate';
+      } else {
+        badge.className = 'badge bg-success';
+        attackText.className = 'fw-bold text-success text-truncate';
+      }
+
+      fetchPredictionHistory();
+    } catch (err) {
+      alert(`Prediction failed: ${err.message}`);
+    } finally {
+      document.getElementById('btnPredictManual').disabled = false;
+    }
+  });
+
+  // Load and refresh recent prediction history log
+  const fetchPredictionHistory = async () => {
+    try {
+      const response = await fetch('{{ url_for("qnn.get_prediction_history") }}');
+      if (response.ok) {
+        const logs = await response.json();
+        const tbody = document.querySelector('#predictionHistoryTable tbody');
+        tbody.innerHTML = '';
+
+        if (logs.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 small">No prediction logs available.</td></tr>';
+          return;
+        }
+
+        logs.forEach(log => {
+          const date = new Date(log.timestamp);
+          const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          const badgeClass = log.prediction_label === 'Intrusion' ? 'bg-danger' : 'bg-success';
+          const textClass = log.prediction_label === 'Intrusion' ? 'text-danger fw-semibold' : 'text-success fw-semibold';
+
+          const row = `
+            <tr>
+              <td class="small text-muted">${timeStr}</td>
+              <td class="small text-end fw-mono text-muted">${log.src_bytes}B / ${log.dst_bytes}B</td>
+              <td class="text-center"><span class="badge ${badgeClass}">${log.prediction_label}</span></td>
+              <td class="small text-end">${(log.confidence * 100).toFixed(2)}%</td>
+              <td class="small ${textClass}">${log.attack_type}</td>
+            </tr>
+          `;
+          tbody.innerHTML += row;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load prediction history", err);
+    }
+  };
+
+  // On page load
+  fetchTrainingHistory();
+  fetchPredictionHistory();
+</script>
+{% endblock %}

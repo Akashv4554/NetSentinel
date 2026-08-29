@@ -89,3 +89,15 @@ class PortResultRepository:
             .order_by(PortResult.port)
             .all()
         )
+
+    def list_for_sessions(self, session_ids: list[int]) -> list[PortResult]:
+        """Return all port results associated with a list of session identifiers in one query."""
+        if not session_ids:
+            return []
+        return (
+            db.session.query(PortResult)
+            .filter(PortResult.scan_session_id.in_(session_ids))
+            .order_by(PortResult.port)
+            .all()
+        )
+

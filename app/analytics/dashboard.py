@@ -117,7 +117,5 @@ class DashboardService:
         return self._session_repo.list_all()
 
     def _load_port_results(self, sessions: list[ScanSession]) -> list[PortResult]:
-        results: list[PortResult] = []
-        for session in sessions:
-            results.extend(self._result_repo.list_for_session(session.id))
-        return results
+        session_ids = [s.id for s in sessions]
+        return self._result_repo.list_for_sessions(session_ids)

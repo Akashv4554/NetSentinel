@@ -19,6 +19,7 @@ from app.extensions import db
 from app.routes.api import api_bp
 from app.routes.main import main_bp
 from app.routes.ui import ui_bp
+from app.routes.qnn import qnn_bp, start_qnn_background_monitoring
 
 
 load_dotenv()
@@ -49,6 +50,8 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     register_shell_context(app)
     register_error_handlers(app)
 
+    start_qnn_background_monitoring(app)
+
     return app
 
 
@@ -72,6 +75,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(ui_bp)
+    app.register_blueprint(qnn_bp)
 
 
 def configure_logging(app: Flask) -> None:
